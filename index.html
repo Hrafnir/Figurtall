@@ -1,23 +1,19 @@
-<!-- Version: #1 -->
+<!-- Version: #2 -->
 <!DOCTYPE html>
 <html lang="no">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Figurtall Utforsker</title>
+    <title>Figurtall Utforsker - Pro</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- MathJax for rendering formulas -->
+    <!-- MathJax -->
     <script>
         window.MathJax = {
-            tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']]
-            },
-            svg: {
-                fontCache: 'global'
-            }
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' }
         };
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -26,120 +22,172 @@
 </head>
 <body class="bg-gray-100 h-screen flex flex-col text-gray-800 font-sans">
 
-    <!-- Header -->
-    <header class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
-        <h1 class="text-2xl font-bold">Figurtall Utforsker</h1>
-        <div class="text-sm">Matematikk 8.-10. trinn</div>
+    <!-- Header (Hidden on print) -->
+    <header class="bg-slate-800 text-white p-3 shadow-md flex justify-between items-center no-print">
+        <div class="flex items-center gap-4">
+            <h1 class="text-xl font-bold tracking-wider">FIGURTALL<span class="text-blue-400">PRO</span></h1>
+            <span class="text-xs text-slate-400 border-l border-slate-600 pl-4">Utforsk mønstre og formler</span>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="app.exportPNG()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-sm flex items-center gap-2 transition">
+                <span>📷</span> Lagre PNG
+            </button>
+            <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-sm flex items-center gap-2 transition font-bold">
+                <span>🖨️</span> Skriv ut
+            </button>
+        </div>
     </header>
 
     <!-- Main Content -->
     <main class="flex-1 flex overflow-hidden">
         
-        <!-- Left Panel: Controls -->
-        <aside class="w-1/3 min-w-[350px] bg-white border-r border-gray-200 flex flex-col shadow-lg z-10">
+        <!-- Left Panel: Controls (Hidden on print) -->
+        <aside class="w-80 bg-white border-r border-gray-200 flex flex-col shadow-lg z-10 no-print overflow-hidden">
             
-            <!-- Global Controls -->
-            <div class="p-6 border-b border-gray-200 bg-gray-50">
-                <label class="block text-lg font-bold mb-2 text-blue-800">
-                    Figurnummer ($n$): <span id="n-display" class="text-blue-600 text-2xl font-mono ml-2">1</span>
-                </label>
+            <!-- N-Slider -->
+            <div class="p-5 border-b border-gray-100 bg-slate-50">
+                <div class="flex justify-between items-end mb-2">
+                    <label class="font-bold text-slate-700">Figurnummer ($n$)</label>
+                    <span id="n-display" class="text-blue-600 text-3xl font-mono font-bold leading-none">1</span>
+                </div>
                 <input type="range" id="n-slider" min="1" max="10" value="1" 
-                       class="w-full h-3 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-blue-600">
-                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                       class="w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                <div class="flex justify-between text-[10px] text-gray-400 mt-1 font-mono">
                     <span>1</span><span>5</span><span>10</span>
                 </div>
             </div>
 
-            <!-- Presets -->
-            <div class="p-4 border-b border-gray-200 grid grid-cols-2 gap-2">
-                <button id="btn-preset-house" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 py-2 px-4 rounded border border-indigo-300 transition">
-                    🏠 Last inn: Hus
+            <!-- Global Actions -->
+            <div class="p-3 grid grid-cols-2 gap-2 border-b border-gray-100">
+                <button id="btn-add-shape" class="col-span-2 bg-green-600 hover:bg-green-700 text-white py-2 rounded shadow-sm font-bold transition flex justify-center items-center gap-2">
+                    <span>+</span> Legg til Figur
                 </button>
-                <button id="btn-preset-boat" class="bg-blue-100 hover:bg-blue-200 text-blue-800 py-2 px-4 rounded border border-blue-300 transition">
-                    ⛵ Last inn: Båt
+                <button onclick="app.groupSelected()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 rounded text-xs border border-gray-300" title="Snarvei: 'g'">
+                    Grupper (g)
+                </button>
+                <button onclick="app.ungroupSelected()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 rounded text-xs border border-gray-300">
+                    Avgrupper
                 </button>
             </div>
 
-            <!-- Components List -->
-            <div class="flex-1 overflow-y-auto p-4">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-semibold">Byggeklosser</h2>
-                    <button id="btn-add-shape" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded shadow text-sm font-bold">
-                        + Legg til
-                    </button>
+            <!-- Palette & Selection Info -->
+            <div id="selection-panel" class="p-4 bg-yellow-50 border-b border-yellow-100 hidden">
+                <h3 class="text-xs font-bold text-yellow-800 uppercase mb-2">Valgte elementer</h3>
+                
+                <!-- Quick Color Palette -->
+                <div class="mb-3">
+                    <div class="text-[10px] text-yellow-700 mb-1">Hurtigfarger (fra tegning):</div>
+                    <div id="quick-palette" class="flex flex-wrap gap-1">
+                        <!-- Colors injected by JS -->
+                    </div>
                 </div>
-                <div id="layers-list" class="space-y-3">
-                    <!-- Layer items will be injected here via JS -->
+
+                <!-- Bulk Transform -->
+                <div class="flex gap-1">
+                     <button onclick="app.flipSelected('x')" class="flex-1 bg-white border border-yellow-300 text-yellow-800 text-xs py-1 rounded hover:bg-yellow-100">↔ Speil X</button>
+                     <button onclick="app.flipSelected('y')" class="flex-1 bg-white border border-yellow-300 text-yellow-800 text-xs py-1 rounded hover:bg-yellow-100">↕ Speil Y</button>
+                </div>
+            </div>
+
+            <!-- Layers List -->
+            <div class="flex-1 overflow-y-auto bg-gray-50">
+                <div id="layers-list" class="p-2 space-y-2">
+                    <!-- Items injected by JS -->
                 </div>
             </div>
         </aside>
 
         <!-- Right Panel: Canvas -->
-        <section class="flex-1 relative bg-gray-50 overflow-hidden flex flex-col">
-            <div class="absolute top-4 left-4 bg-white/80 p-2 rounded text-xs text-gray-500 pointer-events-none border border-gray-200 z-0">
-                Grid: 1 rute = 1 enhet. Origo er markert.
-            </div>
+        <section class="flex-1 relative bg-gray-100 overflow-hidden flex flex-col">
             
             <!-- Canvas Container -->
-            <div id="canvas-container" class="flex-1 w-full h-full relative cursor-crosshair">
+            <div id="canvas-container" class="flex-1 w-full h-full relative cursor-crosshair bg-white shadow-inner">
                 <canvas id="main-canvas"></canvas>
+                
+                <!-- Controls Overlay (Zoom/Center) - Optional enhancement -->
+                <div class="absolute bottom-4 right-4 flex gap-2 no-print">
+                    <button onclick="app.centerCamera()" class="bg-white p-2 rounded-full shadow text-gray-600 hover:text-blue-600" title="Sentrer Visning">
+                        🎯
+                    </button>
+                </div>
             </div>
 
             <!-- Bottom Formula Bar -->
-            <div class="h-48 bg-white border-t border-gray-300 p-6 flex flex-col justify-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-gray-500 font-bold uppercase tracking-wide text-sm">Matematisk Modell</h3>
-                    <div class="text-sm bg-yellow-100 text-yellow-800 px-3 py-1 rounded border border-yellow-200">
-                        Tips: Se på fargene for å koble figur og formel.
-                    </div>
-                </div>
+            <div class="min-h-[120px] bg-white border-t border-gray-300 p-4 flex flex-col justify-center shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-20 relative">
                 
-                <div class="flex flex-row items-center justify-around gap-8">
+                <!-- Print-only Title -->
+                <div class="hidden print-only text-xl font-bold mb-4">Figurtall Analyse</div>
+
+                <div class="flex flex-wrap items-center justify-center gap-4 md:gap-12">
                     <!-- General Formula -->
                     <div class="text-center">
-                        <div class="text-xs text-gray-400 mb-1">Generell formel ($F_n$)</div>
-                        <div id="formula-display" class="text-2xl overflow-x-auto whitespace-nowrap py-2 px-4 bg-gray-50 rounded border border-gray-100 min-w-[200px]">
-                            $$ F_n = \dots $$
+                        <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Generell formel</div>
+                        <div id="formula-display" class="text-xl md:text-2xl py-2 px-6 bg-slate-50 rounded-lg border border-slate-200 min-w-[150px]">
+                            $$ F_n = 0 $$
                         </div>
                     </div>
 
                     <!-- Arrow -->
-                    <div class="text-3xl text-gray-300">$\rightarrow$</div>
+                    <div class="text-2xl text-gray-300 no-print">→</div>
 
                     <!-- Calculation -->
                     <div class="text-center">
-                        <div class="text-xs text-gray-400 mb-1">Utregning for valgt $n$</div>
-                        <div id="calc-display" class="text-xl font-mono text-gray-700 bg-gray-50 py-2 px-4 rounded border border-gray-100 min-w-[200px]">
-                            ...
+                        <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Utregning</div>
+                        <div id="calc-display" class="text-lg md:text-xl font-mono text-slate-700 bg-slate-50 py-2 px-6 rounded-lg border border-slate-200 min-w-[150px]">
+                            0 = 0
                         </div>
                     </div>
+                </div>
+                
+                <div class="absolute bottom-2 right-2 text-[10px] text-gray-300 no-print">
+                    MathJax Enabled
                 </div>
             </div>
         </section>
     </main>
 
     <!-- Modal for Adding Shapes -->
-    <div id="add-shape-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg p-6 w-96 shadow-2xl transform transition-all scale-100">
-            <h3 class="text-xl font-bold mb-4">Velg figurtype</h3>
-            <div class="space-y-2">
-                <button class="w-full text-left p-3 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 transition flex items-center gap-3" onclick="app.addShape('line')">
-                    <span class="w-4 h-4 bg-blue-500 rounded-full inline-block"></span> Linjetall ($n$)
+    <div id="add-shape-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-xl p-6 w-96 shadow-2xl transform transition-all scale-100 border border-gray-100">
+            <h3 class="text-xl font-bold mb-6 text-gray-800">Velg figurtype</h3>
+            <div class="space-y-3">
+                <button class="w-full text-left p-4 rounded-lg bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 transition flex items-center gap-4 group" onclick="app.addShape('line')">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold group-hover:bg-blue-600 group-hover:text-white transition">L</div>
+                    <div>
+                        <div class="font-bold">Linjetall</div>
+                        <div class="text-xs text-gray-500">$n$</div>
+                    </div>
                 </button>
-                <button class="w-full text-left p-3 rounded hover:bg-red-50 border border-transparent hover:border-red-200 transition flex items-center gap-3" onclick="app.addShape('square')">
-                    <span class="w-4 h-4 bg-red-500 rounded-sm inline-block"></span> Kvadrattall ($n^2$)
+                <button class="w-full text-left p-4 rounded-lg bg-gray-50 hover:bg-red-50 border border-gray-200 hover:border-red-300 transition flex items-center gap-4 group" onclick="app.addShape('square')">
+                    <div class="w-8 h-8 rounded bg-red-100 flex items-center justify-center text-red-600 font-bold group-hover:bg-red-600 group-hover:text-white transition">K</div>
+                    <div>
+                        <div class="font-bold">Kvadrattall</div>
+                        <div class="text-xs text-gray-500">$n^2$</div>
+                    </div>
                 </button>
-                <button class="w-full text-left p-3 rounded hover:bg-green-50 border border-transparent hover:border-green-200 transition flex items-center gap-3" onclick="app.addShape('triangle')">
-                    <span class="w-4 h-4 bg-green-500 inline-block" style="clip-path: polygon(50% 0%, 0% 100%, 100% 100%);"></span> Trekanttall ($\frac{n(n+1)}{2}$)
+                <button class="w-full text-left p-4 rounded-lg bg-gray-50 hover:bg-green-50 border border-gray-200 hover:border-green-300 transition flex items-center gap-4 group" onclick="app.addShape('triangle')">
+                    <div class="w-8 h-8 bg-green-100 flex items-center justify-center text-green-600 font-bold group-hover:bg-green-600 group-hover:text-white transition" style="clip-path: polygon(50% 0%, 0% 100%, 100% 100%);">T</div>
+                    <div>
+                        <div class="font-bold">Trekanttall</div>
+                        <div class="text-xs text-gray-500">$\frac{n(n+1)}{2}$</div>
+                    </div>
                 </button>
-                <button class="w-full text-left p-3 rounded hover:bg-purple-50 border border-transparent hover:border-purple-200 transition flex items-center gap-3" onclick="app.addShape('rectangle')">
-                    <span class="w-6 h-4 bg-purple-500 rounded-sm inline-block"></span> Rektangeltall ($n(n+1)$)
+                <button class="w-full text-left p-4 rounded-lg bg-gray-50 hover:bg-purple-50 border border-gray-200 hover:border-purple-300 transition flex items-center gap-4 group" onclick="app.addShape('rectangle')">
+                    <div class="w-8 h-6 rounded-sm bg-purple-100 flex items-center justify-center text-purple-600 font-bold group-hover:bg-purple-600 group-hover:text-white transition">R</div>
+                    <div>
+                        <div class="font-bold">Rektangeltall</div>
+                        <div class="text-xs text-gray-500">$n(n+1)$</div>
+                    </div>
                 </button>
-                <button class="w-full text-left p-3 rounded hover:bg-orange-50 border border-transparent hover:border-orange-200 transition flex items-center gap-3" onclick="app.addShape('constant')">
-                    <span class="w-4 h-4 bg-orange-500 rounded-full inline-block"></span> Konstant ($k$)
+                <button class="w-full text-left p-4 rounded-lg bg-gray-50 hover:bg-orange-50 border border-gray-200 hover:border-orange-300 transition flex items-center gap-4 group" onclick="app.addShape('constant')">
+                    <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold group-hover:bg-orange-600 group-hover:text-white transition">1</div>
+                    <div>
+                        <div class="font-bold">Konstant</div>
+                        <div class="text-xs text-gray-500">$k$</div>
+                    </div>
                 </button>
             </div>
-            <button class="mt-4 w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded" onclick="document.getElementById('add-shape-modal').classList.add('hidden')">
+            <button class="mt-6 w-full py-3 rounded-lg text-gray-500 hover:bg-gray-100 font-semibold transition" onclick="document.getElementById('add-shape-modal').classList.add('hidden')">
                 Avbryt
             </button>
         </div>
