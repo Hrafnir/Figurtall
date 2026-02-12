@@ -1,44 +1,51 @@
-/* Version: #1 */
+/* Version: #2 */
 
 // === KONFIGURASJON ===
 const GRID_SIZE = 30; // Må matche background-size i style.css
-const DOT_RADIUS = 6;
-const COLORS = [
-    { name: 'Rød', hex: '#ef4444', border: '#b91c1c' },     // Tailwind red-500
-    { name: 'Blå', hex: '#3b82f6', border: '#1d4ed8' },     // Tailwind blue-500
-    { name: 'Grønn', hex: '#22c55e', border: '#15803d' },   // Tailwind green-500
-    { name: 'Lilla', hex: '#a855f7', border: '#7e22ce' },   // Tailwind purple-500
-    { name: 'Oransje', hex: '#f97316', border: '#c2410c' }, // Tailwind orange-500
-    { name: 'Rosa', hex: '#ec4899', border: '#be185d' },    // Tailwind pink-500
-    { name: 'Turkis', hex: '#06b6d4', border: '#0e7490' }   // Tailwind cyan-500
-];
+const DOT_RADIUS = 8; // Litt større radius for lettere klikking
+const HIT_RADIUS = 15; // Hvor nærme man må klikke for å treffe en prikk
+
+// Standardfarger for nye figurer (roteres)
+const DEFAULT_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#a855f7', '#f97316'];
 
 // === KLASSE: SHAPE (FIGUR) ===
 class Shape {
-    constructor(id, type, colorIndex) {
+    constructor(id, type, colorHex) {
         this.id = id;
         this.type = type; // 'line', 'square', 'triangle', 'rectangle', 'constant'
-        this.colorIdx = colorIndex % COLORS.length;
-        this.offsetX = 0; // Grid enheter
-        this.offsetY = 0; // Grid enheter
-        this.rotation = 0; // 0, 90, 180, 270 grader
-        this.constantValue = 1; // Kun for type 'constant'
+        this.color = colorHex || '#000000';
+        
+        // Posisjon
+        this.offsetX = 0; 
+        this.offsetY = 0; 
+        this.rotation = 0; 
+        
+        // Egenskaper
+        this.nOffset = 0; // Tillegg til global n (f.eks. n+2)
+        this.constantValue = 1; // Kun for 'constant'
+        this.groupName = ""; // Gruppering av figurer
     }
 
-    getColor() {
-        return COLORS[this.colorIdx];
+    // Beregner effektiv n for denne figuren
+    getEffectiveN(globalN) {
+        if (this.type === 'constant') return this.constantValue;
+        const eff = globalN + this.nOffset;
+        return eff < 1 ? 0 : eff; // Ingen negative figurtall
     }
 
-    // Returnerer array av punkter {x, y} relativt til figurens origo (0,0) basert på n
-    getPoints(n) {
+    // Returnerer array av punkter {x, y} relativt til figurens origo
+    getPoints(globalN) {
         let points = [];
+        const n = this.getEffectiveN(globalN);
+
+        if (n <= 0) return []; // Tegn ingenting hvis n blir 0 eller mindre
         
         switch (this.type) {
-            case 'line': // Linjetall: n punkter på rad
+            case 'line': 
                 for (let i = 0; i < n; i++) points.push({x: i, y: 0});
                 break;
             
-            case 'square': // Kvadrattall: n*n grid
+            case 'square': 
                 for (let y = 0; y < n; y++) {
                     for (let x = 0; x < n; x++) {
                         points.push({x: x, y: y});
@@ -46,8 +53,7 @@ class Shape {
                 }
                 break;
 
-            case 'rectangle': // Rektangeltall: n * (n+1)
-                // Høyde n, Bredde n+1
+            case 'rectangle': // n * (n+1)
                 for (let y = 0; y < n; y++) {
                     for (let x = 0; x < n + 1; x++) {
                         points.push({x: x, y: y});
@@ -55,9 +61,7 @@ class Shape {
                 }
                 break;
 
-            case 'triangle': // Trekanttall: n(n+1)/2
-                // Vi bygger en rettvinklet trekant ("trapp") som er lett å stable.
-                // Rad 0: 1 prikk. Rad 1: 2 prikker...
+            case 'triangle': // n(n+1)/2 (Trapp)
                 for (let y = 0; y < n; y++) {
                     for (let x = 0; x <= y; x++) {
                         points.push({x: x, y: y});
@@ -65,30 +69,19 @@ class Shape {
                 }
                 break;
 
-            case 'constant': // Konstant: Alltid k punkter
-                // Lager en enkel linje
+            case 'constant': 
                 for (let i = 0; i < this.constantValue; i++) points.push({x: i, y: 0});
                 break;
         }
 
-        // Bruk rotasjon
+        // Roter punktene
         points = points.map(p => this.rotatePoint(p));
-
         return points;
     }
 
     rotatePoint(p) {
-        // Roterer rundt (0,0) internt i figuren
-        // 90 grader med klokka: (x, y) -> (y, -x) i matematisk grid, 
-        // men la oss holde det enkelt:
-        // 0 deg: x, y
-        // 90 deg: -y, x
-        // 180 deg: -x, -y
-        // 270 deg: y, -x
-        
         let x = p.x;
         let y = p.y;
-        
         switch (this.rotation) {
             case 90: return {x: -y, y: x};
             case 180: return {x: -x, y: -y};
@@ -97,23 +90,73 @@ class Shape {
         }
     }
 
+    // Returnerer true hvis punktet (gridX, gridY) treffer en av prikkene i figuren
+    hitTest(globalN, gridX, gridY) {
+        const points = this.getPoints(globalN);
+        // Sjekk avstand til hvert punkt
+        // Vi bruker en enkel avstandssjekk i grid-enheter. 
+        // 0.5 grid units radius (ca 15px) er greit.
+        const threshold = 0.5; 
+
+        for (let p of points) {
+            const px = p.x + this.offsetX;
+            const py = p.y + this.offsetY;
+            const dist = Math.sqrt((px - gridX)**2 + (py - gridY)**2);
+            if (dist < threshold) return true;
+        }
+        return false;
+    }
+
     getFormulaLatex() {
-        const c = this.getColor().hex;
-        let term = "";
+        const c = this.color;
+        let nStr = "n";
         
+        // Håndter n offset visning
+        if (this.nOffset > 0) nStr = `(n+${this.nOffset})`;
+        else if (this.nOffset < 0) nStr = `(n-${Math.abs(this.nOffset)})`;
+        
+        // Hvis nOffset er 0, trenger vi av og til parenteser avhengig av kontekst,
+        // men n^2 er greit. n(n+1) krever litt omtanke.
+
+        let term = "";
         switch (this.type) {
-            case 'line': term = "n"; break;
-            case 'square': term = "n^2"; break;
-            case 'rectangle': term = "n(n+1)"; break;
-            case 'triangle': term = "\\frac{n(n+1)}{2}"; break;
-            case 'constant': term = this.constantValue.toString(); break;
+            case 'line': 
+                term = nStr; 
+                break;
+            case 'square': 
+                term = `${nStr}^2`; 
+                break;
+            case 'rectangle': 
+                // n(n+1) logic
+                if (this.nOffset === 0) term = "n(n+1)";
+                else {
+                    // (n+1)(n+2)
+                    const nPlusOne = this.nOffset + 1;
+                    const nextStr = nPlusOne > 0 ? `(n+${nPlusOne})` : (nPlusOne === 0 ? "n" : `(n${nPlusOne})`);
+                    term = `${nStr}${nextStr}`;
+                }
+                break;
+            case 'triangle': 
+                // n(n+1)/2 logic
+                if (this.nOffset === 0) term = "\\frac{n(n+1)}{2}";
+                else {
+                    const nPlusOne = this.nOffset + 1;
+                    const nextStr = nPlusOne > 0 ? `(n+${nPlusOne})` : (nPlusOne === 0 ? "n" : `(n${nPlusOne})`);
+                    term = `\\frac{${nStr}${nextStr}}{2}`;
+                }
+                break;
+            case 'constant': 
+                term = this.constantValue.toString(); 
+                break;
         }
 
-        // Returnerer LaTeX med farge
         return `\\color{${c}}{${term}}`;
     }
 
-    getValue(n) {
+    getValue(globalN) {
+        const n = this.getEffectiveN(globalN);
+        if (n <= 0) return 0;
+
         switch (this.type) {
             case 'line': return n;
             case 'square': return n * n;
@@ -132,21 +175,28 @@ const app = {
     n: 1,
     shapes: [],
     nextId: 1,
-    cameraOffset: {x: 0, y: 0}, // Brukes til å sentrere tegningen
+    cameraOffset: {x: 0, y: 0},
+    
+    // Drag & Drop state
+    isDragging: false,
+    draggedShapes: [], // Array av IDer som flyttes (pga gruppering)
+    lastMousePos: {x: 0, y: 0},
 
     init() {
-        console.log("Starter Figurtall Utforsker...");
+        console.log("Starter Figurtall Utforsker v2...");
         this.canvas = document.getElementById('main-canvas');
         this.ctx = this.canvas.getContext('2d');
         
-        // Håndter resizing av vindu
+        // Event Listeners
         window.addEventListener('resize', () => this.resizeCanvas());
         
-        // UI Event Listeners
-        document.getElementById('n-slider').addEventListener('input', (e) => {
-            this.setN(parseInt(e.target.value));
-        });
+        // Mouse Events for Canvas (Drag & Drop)
+        this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        window.addEventListener('mouseup', () => this.handleMouseUp());
 
+        // UI Controls
+        document.getElementById('n-slider').addEventListener('input', (e) => this.setN(parseInt(e.target.value)));
         document.getElementById('btn-add-shape').addEventListener('click', () => {
             document.getElementById('add-shape-modal').classList.remove('hidden');
         });
@@ -154,26 +204,107 @@ const app = {
         document.getElementById('btn-preset-house').addEventListener('click', () => this.loadPreset('house'));
         document.getElementById('btn-preset-boat').addEventListener('click', () => this.loadPreset('boat'));
 
-        // Start opp
-        this.resizeCanvas(); // Kaller også draw()
+        this.resizeCanvas();
         this.updateUI();
-        console.log("Initialisering ferdig.");
     },
 
     resizeCanvas() {
         const container = document.getElementById('canvas-container');
         this.canvas.width = container.clientWidth;
         this.canvas.height = container.clientHeight;
-        
-        // Sentrer kamera (origo) midt i canvaset
         this.cameraOffset.x = Math.floor(this.canvas.width / 2);
         this.cameraOffset.y = Math.floor(this.canvas.height / 2);
-        
         this.draw();
     },
 
+    // === MOUSE HANDLING ===
+    getGridCoordinates(evt) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = evt.clientX - rect.left;
+        const mouseY = evt.clientY - rect.top;
+
+        // Konverter piksel til grid (husk invertert Y)
+        // px = cx + gridX * size  =>  gridX = (px - cx) / size
+        // py = cy - gridY * size  =>  gridY = (cy - py) / size
+        const gridX = (mouseX - this.cameraOffset.x) / GRID_SIZE;
+        const gridY = (this.cameraOffset.y - mouseY) / GRID_SIZE;
+        
+        return { gridX, gridY, clientX: evt.clientX, clientY: evt.clientY };
+    },
+
+    handleMouseDown(e) {
+        const coords = this.getGridCoordinates(e);
+        
+        // Sjekk om vi treffer en figur (sjekk øverste lag først -> baklengs loop)
+        let hitShape = null;
+        for (let i = this.shapes.length - 1; i >= 0; i--) {
+            if (this.shapes[i].hitTest(this.n, coords.gridX, coords.gridY)) {
+                hitShape = this.shapes[i];
+                break;
+            }
+        }
+
+        if (hitShape) {
+            this.isDragging = true;
+            this.lastMousePos = { x: coords.gridX, y: coords.gridY };
+            
+            // Finn alle figurer som skal flyttes (Gruppering)
+            if (hitShape.groupName && hitShape.groupName.trim() !== "") {
+                this.draggedShapes = this.shapes.filter(s => s.groupName === hitShape.groupName);
+            } else {
+                this.draggedShapes = [hitShape];
+            }
+            
+            this.canvas.style.cursor = "grabbing";
+        }
+    },
+
+    handleMouseMove(e) {
+        if (!this.isDragging) {
+            // Hover effekt: Endre cursor hvis over figur
+            const coords = this.getGridCoordinates(e);
+            let hit = false;
+            for (let s of this.shapes) {
+                if (s.hitTest(this.n, coords.gridX, coords.gridY)) {
+                    hit = true; break;
+                }
+            }
+            this.canvas.style.cursor = hit ? "grab" : "crosshair";
+            return;
+        }
+
+        const coords = this.getGridCoordinates(e);
+        const dx = coords.gridX - this.lastMousePos.x;
+        const dy = coords.gridY - this.lastMousePos.y;
+
+        // Oppdater posisjon på alle valgte figurer
+        this.draggedShapes.forEach(s => {
+            s.offsetX += dx;
+            s.offsetY += dy;
+        });
+
+        this.lastMousePos = { x: coords.gridX, y: coords.gridY };
+        this.draw();
+    },
+
+    handleMouseUp() {
+        if (this.isDragging) {
+            this.isDragging = false;
+            this.draggedShapes = [];
+            this.canvas.style.cursor = "grab";
+            
+            // Snap to grid (rund av til nærmeste heltall)
+            this.shapes.forEach(s => {
+                s.offsetX = Math.round(s.offsetX);
+                s.offsetY = Math.round(s.offsetY);
+            });
+            this.draw();
+            this.updateUI(); // Oppdater koordinat-knapper i listen hvis vi vil vise dem
+        }
+    },
+
+    // === STATE MANAGEMENT ===
     setN(val) {
-        console.log(`Endrer n til: ${val}`);
         this.n = val;
         document.getElementById('n-display').innerText = val;
         this.draw();
@@ -183,108 +314,91 @@ const app = {
     addShape(type) {
         document.getElementById('add-shape-modal').classList.add('hidden');
         
-        const shape = new Shape(this.nextId++, type, this.shapes.length);
+        // Velg en farge fra standardpaletten
+        const color = DEFAULT_COLORS[this.shapes.length % DEFAULT_COLORS.length];
+        const shape = new Shape(this.nextId++, type, color);
         
-        // Enkel logikk for å ikke legge alle oppå hverandre med en gang
+        // Plasser litt smart
         if (this.shapes.length > 0) {
-            shape.offsetX = this.shapes.length * 2;
+            shape.offsetX = 2; // Litt til siden for origo
         }
         
         if (type === 'constant') {
-            const val = prompt("Hvor mange prikker skal konstanten være?", "2");
+            const val = prompt("Verdi for konstant?", "1");
             shape.constantValue = parseInt(val) || 1;
         }
 
         this.shapes.push(shape);
-        console.log(`La til figur: ${type} (ID: ${shape.id})`);
-        
         this.renderLayersList();
         this.draw();
         this.updateFormula();
     },
 
-    removeShape(id) {
-        console.log(`Fjerner figur ID: ${id}`);
-        this.shapes = this.shapes.filter(s => s.id !== id);
-        this.renderLayersList();
-        this.draw();
-        this.updateFormula();
-    },
-
-    moveShape(id, dx, dy) {
+    updateShapeProp(id, prop, value) {
         const s = this.shapes.find(s => s.id === id);
-        if (s) {
-            s.offsetX += dx;
-            s.offsetY += dy;
-            console.log(`Flyttet figur ${id} til (${s.offsetX}, ${s.offsetY})`);
-            this.draw();
-        }
+        if (!s) return;
+
+        if (prop === 'nOffset') s.nOffset = parseInt(value) || 0;
+        if (prop === 'color') s.color = value;
+        if (prop === 'groupName') s.groupName = value;
+
+        this.draw();
+        this.updateFormula();
     },
 
     rotateShape(id) {
         const s = this.shapes.find(s => s.id === id);
         if (s) {
             s.rotation = (s.rotation + 90) % 360;
-            console.log(`Roterte figur ${id} til ${s.rotation} grader`);
             this.draw();
-            
-            // Oppdater knapp-tekst i UI
+            // Oppdater UI knapp tekst
             const btn = document.getElementById(`rot-btn-${id}`);
             if(btn) btn.innerText = `↻ ${s.rotation}°`;
         }
     },
 
+    removeShape(id) {
+        this.shapes = this.shapes.filter(s => s.id !== id);
+        this.renderLayersList();
+        this.draw();
+        this.updateFormula();
+    },
+
     loadPreset(name) {
-        console.log(`Laster preset: ${name}`);
         this.shapes = [];
-        this.n = 3; // Reset N for demo, da ser figurene ofte best ut
+        this.n = 3;
         document.getElementById('n-slider').value = 3;
         document.getElementById('n-display').innerText = 3;
 
         if (name === 'house') {
-            // Hus: Kvadrat (vegg) + Trekant (tak)
-            
-            // 1. Vegg (Rød firkant)
-            const wall = new Shape(this.nextId++, 'square', 0); 
-            wall.offsetX = -1; // Sentrer litt
-            wall.offsetY = 0;
-            
-            // 2. Tak (Grønn trekant)
-            // Vi må rotere og flytte den for å passe oppå
-            const roof = new Shape(this.nextId++, 'triangle', 2); 
-            roof.offsetX = -2; 
-            roof.offsetY = 3; // Oppå veggen (hvis n=3, høyde er 3)
-            // Merk: Siden offset er statisk og høyden på veggen er dynamisk (n),
-            // vil taket "sveve" hvis n øker, eller kræsje hvis n minker.
-            // Dette er en del av utforskningen ("Hvorfor passer ikke taket når n=5?").
-            // For pedagogisk formål i denne appen lar vi offset være statisk.
-            
-            // Justering for å få taket til å se pent ut som en trapp oppå
-            roof.rotation = 0; // Standard trapp
-            // La oss prøve å rotere den for å lage en spiss? Nei, trappetak er kult.
-            // La oss rotere den slik at den peker opp-høyre.
-            
+            // Hus: Kvadrat vegg, Trekant tak. Samme gruppe.
+            const wall = new Shape(this.nextId++, 'square', '#ef4444'); 
+            wall.groupName = "Hus";
+            wall.offsetX = -1; wall.offsetY = 0;
+
+            const roof = new Shape(this.nextId++, 'triangle', '#22c55e');
+            roof.groupName = "Hus";
+            roof.offsetX = -2; roof.offsetY = 3; 
+            // La oss si taket er litt større? n+1?
+            roof.nOffset = 1; // Prøver offset funksjonaliteten
+
             this.shapes.push(wall, roof);
-
         } else if (name === 'boat') {
-            // Båt: Rektangel (skrog) + Linje (mast) + Trekant (seil)
-            
-            // 1. Skrog (Blå)
-            const hull = new Shape(this.nextId++, 'rectangle', 1); 
-            hull.offsetX = -2; 
-            hull.offsetY = -2; // Litt ned
-            
-            // 2. Mast (Oransje linje)
-            const mast = new Shape(this.nextId++, 'line', 4); 
-            mast.rotation = 90; // Vertikal
-            mast.offsetX = 0; // Midt på (hvis n=3, bredde er 4)
-            mast.offsetY = 1; // Opp fra skroget
-            
-            // 3. Seil (Rød trekant)
-            const sail = new Shape(this.nextId++, 'triangle', 0); 
-            sail.offsetX = 1;
-            sail.offsetY = 1;
+            // Båt: Skrog (Rekt), Mast (Linje), Seil (Trekant)
+            const hull = new Shape(this.nextId++, 'rectangle', '#3b82f6');
+            hull.groupName = "Båt";
+            hull.offsetX = -2; hull.offsetY = -2;
 
+            const mast = new Shape(this.nextId++, 'line', '#f97316');
+            mast.groupName = "Båt";
+            mast.rotation = 90;
+            mast.offsetX = 0; mast.offsetY = 1;
+            mast.nOffset = 2; // Masten er høyere enn n
+
+            const sail = new Shape(this.nextId++, 'triangle', '#ef4444');
+            sail.groupName = "Båt";
+            sail.offsetX = 1; sail.offsetY = 1;
+            
             this.shapes.push(hull, mast, sail);
         }
 
@@ -298,141 +412,127 @@ const app = {
         this.updateFormula();
     },
 
-    // === TEGNING (RENDERING) ===
-    draw() {
-        if (!this.ctx) return;
-        const w = this.canvas.width;
-        const h = this.canvas.height;
-        
-        // Tøm canvas (grid ligger i CSS background)
-        this.ctx.clearRect(0, 0, w, h);
-
-        const cx = this.cameraOffset.x;
-        const cy = this.cameraOffset.y;
-
-        // Tegn akser (X og Y) for å vise origo
-        this.ctx.beginPath();
-        this.ctx.strokeStyle = '#9ca3af'; // Gray-400
-        this.ctx.lineWidth = 2;
-        // X-akse
-        this.ctx.moveTo(0, cy); 
-        this.ctx.lineTo(w, cy); 
-        // Y-akse
-        this.ctx.moveTo(cx, 0); 
-        this.ctx.lineTo(cx, h); 
-        this.ctx.stroke();
-
-        // Tegn figurer
-        // Koordinatsystem:
-        // Math: +Y er OPP. Canvas: +Y er NED.
-        // Vi inverterer Y når vi tegner.
-        
-        this.shapes.forEach(shape => {
-            const points = shape.getPoints(this.n);
-            const color = shape.getColor();
-            
-            this.ctx.fillStyle = color.hex;
-            this.ctx.strokeStyle = color.border;
-            this.ctx.lineWidth = 1;
-
-            points.forEach(p => {
-                // 1. Legg til offset (hvor figuren er plassert i gridet)
-                const gridX = p.x + shape.offsetX;
-                const gridY = p.y + shape.offsetY; 
-                
-                // 2. Konverter til piksler
-                // X: cx + (x * size)
-                // Y: cy - (y * size)  <-- Minus for å invertere Y-aksen (Opp er positivt)
-                const px = cx + (gridX * GRID_SIZE); 
-                const py = cy - (gridY * GRID_SIZE); 
-
-                // Vi sentrerer prikken midt i ruten (grid cellen)
-                // Siden linjene går på piksel 0, 30, 60... vil midten være +15.
-                // Men vent, i style.css er grid lines bakgrunn.
-                // La oss tegne PÅ kryssene (intersections) eller I rutene?
-                // Instruksen sa "rutenett... figurene består av prikker".
-                // Det er vanligst å tegne prikker I rutene eller PÅ kryssene. 
-                // La oss tegne PÅ kryssene (intersections) for enklere koordinatforståelse (0,0 er et kryss).
-                
-                // Tegn sirkel
-                this.ctx.beginPath();
-                this.ctx.arc(px, py, DOT_RADIUS, 0, Math.PI * 2);
-                this.ctx.fill();
-                this.ctx.stroke();
-            });
-        });
-    },
-
-    // === UI LISTE OG FORMEL ===
+    // === RENDERING UI ===
     renderLayersList() {
         const list = document.getElementById('layers-list');
         list.innerHTML = '';
         
         if (this.shapes.length === 0) {
-            list.innerHTML = '<div class="text-gray-400 text-center italic mt-4">Ingen figurer lagt til.</div>';
+            list.innerHTML = '<div class="text-gray-400 text-center italic mt-4">Ingen figurer.</div>';
             return;
         }
 
-        // Vi itererer baklengs eller forlengs? Listen bør matche rekkefølgen.
         this.shapes.forEach(shape => {
             const el = document.createElement('div');
-            el.className = "bg-white p-3 rounded border border-gray-200 shadow-sm flex flex-col gap-2 transition hover:shadow-md";
+            el.className = "bg-white p-3 rounded border border-gray-200 shadow-sm flex flex-col gap-2 mb-2";
             
-            // Header: Navn og Farge
-            const header = document.createElement('div');
-            header.className = "flex justify-between items-center";
-            header.innerHTML = `
-                <div class="flex items-center gap-2 font-bold text-gray-700">
-                    <div class="w-4 h-4 rounded-full border border-gray-300" style="background-color: ${shape.getColor().hex}"></div>
-                    <span>${this.getShapeNameNorwegian(shape.type)}</span>
+            // Topplinje: Type, Fargevelger, Slett
+            const topRow = document.createElement('div');
+            topRow.className = "flex justify-between items-center";
+            
+            const typeLabel = this.getShapeNameNorwegian(shape.type);
+            
+            topRow.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <input type="color" value="${shape.color}" 
+                           onchange="app.updateShapeProp(${shape.id}, 'color', this.value)"
+                           class="w-6 h-6 p-0 border-0 rounded cursor-pointer">
+                    <span class="font-bold text-sm text-gray-700">${typeLabel}</span>
                 </div>
-                <button onclick="app.removeShape(${shape.id})" class="text-gray-400 hover:text-red-500 font-bold px-2 text-lg" title="Fjern">
-                    &times;
-                </button>
+                <button onclick="app.removeShape(${shape.id})" class="text-gray-400 hover:text-red-500 font-bold px-2 text-lg">&times;</button>
             `;
-            
-            // Kontroller: Flytt og Roter
+
+            // Kontrollpanel: Offset, Gruppe, Rotasjon
             const controls = document.createElement('div');
-            controls.className = "flex justify-between items-center text-xs mt-1 bg-gray-50 p-2 rounded";
-            
-            // Flytte-knapper (D-pad style flat)
-            const moveDiv = document.createElement('div');
-            moveDiv.className = "flex gap-1 items-center";
-            moveDiv.innerHTML = `
-                <span class="text-gray-400 mr-1 font-semibold">Pos:</span>
-                <button onclick="app.moveShape(${shape.id}, -1, 0)" class="bg-white border border-gray-300 hover:bg-blue-50 px-2 py-1 rounded shadow-sm">←</button>
-                <div class="flex flex-col gap-1">
-                    <button onclick="app.moveShape(${shape.id}, 0, 1)" class="bg-white border border-gray-300 hover:bg-blue-50 px-2 py-0.5 rounded shadow-sm">↑</button>
-                    <button onclick="app.moveShape(${shape.id}, 0, -1)" class="bg-white border border-gray-300 hover:bg-blue-50 px-2 py-0.5 rounded shadow-sm">↓</button>
-                </div>
-                <button onclick="app.moveShape(${shape.id}, 1, 0)" class="bg-white border border-gray-300 hover:bg-blue-50 px-2 py-1 rounded shadow-sm">→</button>
+            controls.className = "grid grid-cols-2 gap-2 text-xs mt-1";
+
+            // N-offset input
+            const offsetDiv = document.createElement('div');
+            offsetDiv.className = "flex flex-col";
+            offsetDiv.innerHTML = `
+                <label class="text-gray-500">Justering (n)</label>
+                <input type="number" value="${shape.nOffset}" 
+                       onchange="app.updateShapeProp(${shape.id}, 'nOffset', this.value)"
+                       class="border rounded px-1 py-0.5 w-full">
             `;
 
-            // Roter-knapp
-            const rotBtn = document.createElement('button');
-            rotBtn.id = `rot-btn-${shape.id}`;
-            rotBtn.className = "bg-white text-blue-600 px-3 py-1 rounded hover:bg-blue-50 border border-blue-200 shadow-sm font-medium transition";
-            rotBtn.innerText = `↻ ${shape.rotation}°`;
-            rotBtn.onclick = () => app.rotateShape(shape.id);
+            // Gruppe input
+            const groupDiv = document.createElement('div');
+            groupDiv.className = "flex flex-col";
+            groupDiv.innerHTML = `
+                <label class="text-gray-500">Gruppe</label>
+                <input type="text" value="${shape.groupName}" placeholder="Navn..."
+                       onchange="app.updateShapeProp(${shape.id}, 'groupName', this.value)"
+                       class="border rounded px-1 py-0.5 w-full">
+            `;
 
-            controls.appendChild(moveDiv);
-            controls.appendChild(rotBtn);
+            // Rotasjon knapp
+            const rotDiv = document.createElement('div');
+            rotDiv.className = "col-span-2 flex justify-end mt-1";
+            rotDiv.innerHTML = `
+                 <button id="rot-btn-${shape.id}" onclick="app.rotateShape(${shape.id})" 
+                         class="bg-gray-100 text-gray-600 px-2 py-1 rounded border hover:bg-gray-200 w-full">
+                     ↻ Roter (${shape.rotation}°)
+                 </button>
+            `;
+
+            controls.appendChild(offsetDiv);
+            controls.appendChild(groupDiv);
+            controls.appendChild(rotDiv);
             
-            el.appendChild(header);
+            el.appendChild(topRow);
             el.appendChild(controls);
             list.appendChild(el);
         });
     },
 
     getShapeNameNorwegian(type) {
-        const map = {
-            'line': 'Linjetall',
-            'square': 'Kvadrattall',
-            'triangle': 'Trekanttall',
-            'rectangle': 'Rektangeltall',
-            'constant': 'Konstant'
-        };
+        const map = { 'line': 'Linje', 'square': 'Kvadrat', 'triangle': 'Trekant', 'rectangle': 'Rektangel', 'constant': 'Konst' };
         return map[type] || type;
+    },
+
+    // === CANVAS TEGNING ===
+    draw() {
+        if (!this.ctx) return;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+        const cx = this.cameraOffset.x;
+        const cy = this.cameraOffset.y;
+
+        this.ctx.clearRect(0, 0, w, h);
+
+        // Akser
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = '#9ca3af';
+        this.ctx.lineWidth = 2;
+        this.ctx.moveTo(0, cy); this.ctx.lineTo(w, cy);
+        this.ctx.moveTo(cx, 0); this.ctx.lineTo(cx, h);
+        this.ctx.stroke();
+
+        // Tegn figurer
+        this.shapes.forEach(shape => {
+            const points = shape.getPoints(this.n);
+            
+            // Fyll og strek
+            this.ctx.fillStyle = shape.color;
+            // Lager en mørkere variant for border
+            this.ctx.strokeStyle = '#00000033'; 
+            this.ctx.lineWidth = 1;
+
+            points.forEach(p => {
+                const gridX = p.x + shape.offsetX;
+                const gridY = p.y + shape.offsetY; 
+                
+                // Inverter Y (Opp er positivt)
+                const px = cx + (gridX * GRID_SIZE); 
+                const py = cy - (gridY * GRID_SIZE); 
+
+                this.ctx.beginPath();
+                this.ctx.arc(px, py, DOT_RADIUS, 0, Math.PI * 2);
+                this.ctx.fill();
+                this.ctx.stroke();
+            });
+        });
     },
 
     updateFormula() {
@@ -446,46 +546,32 @@ const app = {
             return;
         }
 
-        // Bygg LaTeX streng
         let latexParts = [];
         let totalValue = 0;
         let calcParts = [];
 
         this.shapes.forEach((shape, index) => {
             const sign = index > 0 ? "+" : "";
-            // Legg til formeldel (f.eks. n^2)
             latexParts.push(`${sign} ${shape.getFormulaLatex()}`);
             
-            // Beregn verdi
             const val = shape.getValue(this.n);
             totalValue += val;
-            
-            // Legg til i utregningstekst
             calcParts.push(`${sign} ${val}`);
         });
 
-        // Oppdater DOM
         const formulaStr = latexParts.join(' ');
         formulaContainer.innerHTML = `$$ F_n = ${formulaStr} $$`;
         
-        // Rens opp utregningsstrengen (fjern ledende + tegn)
         let calcStr = calcParts.join(' ').trim();
         if (calcStr.startsWith('+')) calcStr = calcStr.substring(1).trim();
-        
         calcContainer.innerHTML = `${calcStr} = <b>${totalValue}</b>`;
 
-        // Kjør MathJax rendering
         if (window.MathJax) {
-            MathJax.typesetPromise([formulaContainer])
-                .then(() => {
-                    // console.log("MathJax rendering complete");
-                })
-                .catch((err) => console.log('MathJax error:', err));
+            MathJax.typesetPromise([formulaContainer]).catch(err => console.log(err));
         }
     }
 };
 
-// Start appen når DOM er klar
 document.addEventListener('DOMContentLoaded', () => {
     app.init();
 });
