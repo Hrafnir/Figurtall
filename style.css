@@ -1,4 +1,4 @@
-/* Version: #1 */
+/* Version: #2 */
 
 /* General overrides */
 body {
@@ -12,34 +12,45 @@ body {
     height: 100%;
     background-color: #ffffff;
     
-    /* Grid pattern to match JS GRID_SIZE (30px) */
+    /* Grid pattern (30px matches JS) */
     background-image: 
         linear-gradient(#e5e7eb 1px, transparent 1px),
         linear-gradient(90deg, #e5e7eb 1px, transparent 1px);
     background-size: 30px 30px; 
-    background-position: -1px -1px; /* Align lines slightly */
+    background-position: -1px -1px;
 }
 
-/* Custom scrollbar for the layers list */
-#layers-list::-webkit-scrollbar {
-    width: 8px;
+/* Selection Marquee (The drag-selection box) */
+.selection-marquee {
+    position: absolute;
+    border: 1px dashed #2563eb; /* Blue-600 */
+    background-color: rgba(37, 99, 235, 0.1);
+    pointer-events: none; /* Let clicks pass through */
+    z-index: 50;
+    display: none; /* Hidden by default */
 }
-#layers-list::-webkit-scrollbar-track {
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
     background: #f1f1f1; 
 }
-#layers-list::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
     background: #c1c1c1; 
     border-radius: 4px;
 }
-#layers-list::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8; 
 }
 
-/* Range slider styling fix for some browsers to ensure consistent look */
+/* Range slider styling */
 input[type=range] {
-    -webkit-appearance: none; /* Hides the slider so that custom slider can be made */
-    width: 100%; /* Specific width is required for Firefox. */
-    background: transparent; /* Otherwise white in Chrome */
+    -webkit-appearance: none; 
+    width: 100%; 
+    background: transparent; 
 }
 
 input[type=range]::-webkit-slider-thumb {
@@ -48,9 +59,9 @@ input[type=range]::-webkit-slider-thumb {
     height: 20px;
     width: 20px;
     border-radius: 50%;
-    background: #2563eb; /* Tailwind blue-600 */
+    background: #2563eb; 
     cursor: pointer;
-    margin-top: -8px; /* You need to specify a margin in Chrome, but in Firefox and IE it is automatic */
+    margin-top: -8px; 
     box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 
@@ -82,4 +93,45 @@ input[type=range]::-moz-range-track {
 
 input[type=range]:focus {
     outline: none;
+}
+
+/* === PRINT STYLING === */
+@media print {
+    /* Hide all UI elements marked with no-print */
+    .no-print {
+        display: none !important;
+    }
+
+    /* Reset layout for paper */
+    body, main, section {
+        height: auto !important;
+        overflow: visible !important;
+        background-color: white !important;
+        display: block !important;
+    }
+
+    /* Maximize canvas visibility */
+    #canvas-container {
+        width: 100% !important;
+        height: 600px !important; /* Fixed height for print */
+        border: 2px solid #000;
+        box-shadow: none;
+        margin-bottom: 20px;
+        /* Ensure background grid prints */
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Formula styling for print */
+    #formula-display, #calc-display {
+        border: 1px solid #000;
+        background: white;
+        color: black;
+        font-size: 14pt;
+    }
+
+    /* Hide scrollbars on print */
+    ::-webkit-scrollbar {
+        display: none;
+    }
 }
