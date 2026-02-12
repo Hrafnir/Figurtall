@@ -1,4 +1,4 @@
-/* Version: #3 */
+/* Version: #4 */
 
 // === KONFIGURASJON ===
 const GRID_SIZE = 30; 
@@ -86,7 +86,7 @@ class Shape {
 
         // 2. Transformer punkter (Flip -> Rotate)
         return points.map(p => {
-            // Flip
+            // Flip (skjer før rotasjon for intuitiv oppførsel)
             let tx = p.x * this.flipX;
             let ty = p.y * this.flipY;
             
@@ -179,7 +179,7 @@ const app = {
     boxStart: {x: 0, y: 0},  // Pixel coords for marquee
     
     init() {
-        console.log("Starter Figurtall Pro v3...");
+        console.log("Starter Figurtall Pro v4...");
         this.canvas = document.getElementById('main-canvas');
         this.ctx = this.canvas.getContext('2d');
         
@@ -211,6 +211,16 @@ const app = {
         // UI Inputs
         document.getElementById('n-slider').addEventListener('input', (e) => this.setN(parseInt(e.target.value)));
         
+        // === FIX: Koble til 'Legg til Figur' knappen ===
+        const btnAdd = document.getElementById('btn-add-shape');
+        if (btnAdd) {
+            btnAdd.addEventListener('click', () => {
+                document.getElementById('add-shape-modal').classList.remove('hidden');
+            });
+        } else {
+            console.error("Fant ikke knapp: btn-add-shape");
+        }
+
         this.resizeCanvas();
         this.updateUI();
     },
@@ -332,9 +342,6 @@ const app = {
             this.marquee.style.top = y + 'px';
             this.marquee.style.width = w + 'px';
             this.marquee.style.height = h + 'px';
-            
-            // Vi gjør selve seleksjonen i MouseUp for ytelse, eller her? 
-            // La oss gjøre det i MouseUp for å unngå tung loop hver frame.
         } 
         else {
             // Hover cursor logic
@@ -369,10 +376,8 @@ const app = {
             const bY1 = Math.min(this.boxStart.y, pos.y);
             const bY2 = Math.max(this.boxStart.y, pos.y);
             
-            // Sjekk alle figurer om origo (eller et punkt) er inni boksen
-            // For enkelhets skyld sjekker vi om figurens origo er inni
+            // Sjekk alle figurer om origo er inni boksen
             this.shapes.forEach(s => {
-                // Konverter figurens posisjon til piksler
                 const px = this.cameraOffset.x + (s.offsetX * GRID_SIZE);
                 const py = this.cameraOffset.y - (s.offsetY * GRID_SIZE);
                 
@@ -516,10 +521,6 @@ const app = {
     renderLayersList() {
         const list = document.getElementById('layers-list');
         list.innerHTML = '';
-
-        // Sorter slik at selected kommer øverst? Nei, behold tegnerekkefølge (z-index).
-        // Tegnerekkefølge: index 0 er bak. index N er foran.
-        // I listen vil vi ofte ha "Topp lag" øverst. Så vi itererer baklengs.
         
         [...this.shapes].reverse().forEach(shape => {
             const isSelected = this.selectedIDs.has(shape.id);
@@ -559,7 +560,6 @@ const app = {
             `;
 
             // Controls (Offset & Rotation)
-            // Vises kun hvis selected for å spare plass? Eller alltid? Alltid er best for oversikt.
             const controls = document.createElement('div');
             controls.className = "grid grid-cols-2 gap-2 text-xs";
             
@@ -619,7 +619,6 @@ const app = {
 
             points.forEach(p => {
                 // Grid til Pixel
-                // x: cx + (p.x + offX)*SIZE
                 const px = cx + (p.x + shape.offsetX) * GRID_SIZE;
                 const py = cy - (p.y + shape.offsetY) * GRID_SIZE; // Inverter Y
 
@@ -629,7 +628,7 @@ const app = {
                 this.ctx.stroke();
             });
             
-            // Tegn origo-markør for figuren hvis den er valgt (hjelper med rotasjon)
+            // Tegn origo-markør for figuren hvis den er valgt
             if (isSelected) {
                 const ox = cx + shape.offsetX * GRID_SIZE;
                 const oy = cy - shape.offsetY * GRID_SIZE;
@@ -654,8 +653,6 @@ const app = {
         let total = 0;
         let cParts = [];
         
-        // Grupper formler etter navn hvis mulig? Nei, vis alt flatt først.
-        // Eller vis sortert etter ID.
         this.shapes.forEach((s, i) => {
             const sign = i > 0 ? "+" : "";
             parts.push(`${sign} ${s.getFormulaLatex()}`);
@@ -675,26 +672,24 @@ const app = {
     },
 
     exportPNG() {
-        // Lag et midlertidig canvas for å tegne hvit bakgrunn (ellers blir det transparent)
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = this.canvas.width;
         tempCanvas.height = this.canvas.height;
         const tCtx = tempCanvas.getContext('2d');
         
-        // Fyll hvit
         tCtx.fillStyle = '#ffffff';
         tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-        
-        // Tegn hovedcanvas oppå
         tCtx.drawImage(this.canvas, 0, 0);
         
-        // Lagre
         const link = document.createElement('a');
         link.download = 'figurtall-analyse.png';
         link.href = tempCanvas.toDataURL();
         link.click();
     }
 };
+
+// === GLOBAL ASSIGNMENT ===
+window.app = app;
 
 document.addEventListener('DOMContentLoaded', () => {
     app.init();
