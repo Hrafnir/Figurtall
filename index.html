@@ -1,4 +1,4 @@
-<!-- Version: #4 -->
+<!-- Version: #5 -->
 <!DOCTYPE html>
 <html lang="no">
 <head>
@@ -9,16 +9,20 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- html2canvas for Perfect Screenshots -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    
-    <!-- MathJax -->
+    <!-- MathJax Configuration (Must be before loading MathJax) -->
     <script>
         window.MathJax = {
-            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            startup: {
+                typeset: false // Vi kaller typeset manuelt
+            },
+            tex: { 
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
             svg: { fontCache: 'global' }
         };
     </script>
+    <!-- MathJax Library -->
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
     <link rel="stylesheet" href="style.css">
@@ -26,41 +30,38 @@
 <body class="bg-gray-100 h-screen flex flex-col text-gray-800 font-sans overflow-hidden">
 
     <!-- Header -->
-    <header id="main-header" class="bg-slate-800 text-white p-3 shadow-md flex justify-between items-center z-30 shrink-0">
+    <header class="bg-slate-800 text-white p-3 shadow-md flex justify-between items-center z-30 shrink-0">
         <div class="flex items-center gap-4">
             <h1 class="text-xl font-bold tracking-wider">FIGURTALL<span class="text-blue-400">PRO</span></h1>
-            
-            <div class="flex bg-slate-700 rounded p-1 gap-1 ml-4">
-                <button onclick="app.toggleSidebar()" id="btn-toggle-sidebar" class="px-3 py-1 text-xs rounded bg-slate-600 hover:bg-slate-500 transition text-white">
-                    Sidepanel
-                </button>
-                <button onclick="app.toggleFormula()" id="btn-toggle-formula" class="px-3 py-1 text-xs rounded bg-slate-600 hover:bg-slate-500 transition text-white">
-                    Formler
-                </button>
-            </div>
         </div>
         
         <div class="flex gap-2 relative">
             <div class="relative group">
-                <button class="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-sm flex items-center gap-2 transition">
-                    💾 Lagre / Print ▼
+                <button class="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-sm flex items-center gap-2 transition font-medium">
+                    💾 Eksport / Print ▼
                 </button>
-                <div class="absolute right-0 mt-1 w-48 bg-white text-gray-800 rounded shadow-xl border border-gray-200 hidden group-hover:block z-50">
-                    <button onclick="app.exportScreenshot()" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">PNG (Som vist på skjerm)</button>
+                <div class="absolute right-0 mt-1 w-56 bg-white text-gray-800 rounded shadow-xl border border-gray-200 hidden group-hover:block z-50">
+                    <div class="px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Bilde (PNG)</div>
+                    <button onclick="app.exportPNG('clean')" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">Kun Tegning</button>
+                    <button onclick="app.exportPNG('formula')" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">Tegning + Formler</button>
+                    
                     <div class="border-t border-gray-100 my-1"></div>
-                    <button onclick="app.printApp(false)" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">Skriv ut (Kun tegning)</button>
-                    <button onclick="app.printApp(true)" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">Skriv ut (Alt)</button>
+                    
+                    <div class="px-3 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider">Utskrift</div>
+                    <button onclick="app.printApp(false)" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">Uten formler</button>
+                    <button onclick="app.printApp(true)" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">Med formler</button>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- Main Content Wrapper -->
-    <div id="capture-area" class="flex-1 flex overflow-hidden relative">
+    <!-- Main Workspace -->
+    <div class="flex-1 flex overflow-hidden relative">
         
-        <!-- Left Panel -->
-        <aside id="sidebar-panel" class="w-80 bg-white border-r border-gray-200 flex flex-col shadow-lg z-20 transition-all duration-300 shrink-0 h-full">
+        <!-- Left Sidebar -->
+        <aside id="sidebar-panel" class="w-80 bg-white border-r border-gray-200 flex flex-col shadow-lg z-20 shrink-0 h-full overflow-hidden">
             
+            <!-- N Control -->
             <div class="p-5 border-b border-gray-100 bg-slate-50">
                 <div class="flex justify-between items-end mb-2">
                     <label class="font-bold text-slate-700">Figurnummer ($n$)</label>
@@ -73,11 +74,12 @@
                 </div>
             </div>
 
+            <!-- Actions -->
             <div class="p-3 grid grid-cols-2 gap-2 border-b border-gray-100">
                 <button id="btn-add-shape" class="col-span-2 bg-green-600 hover:bg-green-700 text-white py-2 rounded shadow-sm font-bold transition flex justify-center items-center gap-2">
                     <span>+</span> Legg til Figur
                 </button>
-                <button onclick="app.groupSelected()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 rounded text-xs border border-gray-300" title="Snarvei: 'g'">
+                <button onclick="app.groupSelected()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 rounded text-xs border border-gray-300">
                     Grupper (g)
                 </button>
                 <button onclick="app.ungroupSelected()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-1 rounded text-xs border border-gray-300">
@@ -85,6 +87,7 @@
                 </button>
             </div>
 
+            <!-- Selection Panel -->
             <div id="selection-panel" class="p-4 bg-yellow-50 border-b border-yellow-100 hidden">
                 <h3 class="text-xs font-bold text-yellow-800 uppercase mb-2">Valgte elementer</h3>
                 <div class="mb-3">
@@ -96,16 +99,17 @@
                 </div>
             </div>
 
+            <!-- Layers List -->
             <div class="flex-1 overflow-y-auto bg-gray-50">
                 <div id="layers-list" class="p-2 space-y-2"></div>
             </div>
         </aside>
 
-        <!-- Right Section: Canvas + Formula -->
-        <section class="flex-1 flex flex-col relative overflow-hidden bg-gray-100">
+        <!-- Right Section: Canvas + Bottom Formula Panel -->
+        <section class="flex-1 flex flex-col relative overflow-hidden bg-gray-100 h-full">
             
-            <!-- Canvas -->
-            <div id="canvas-container" class="flex-1 relative cursor-crosshair bg-white shadow-inner w-full">
+            <!-- Canvas Area -->
+            <div id="canvas-container" class="flex-1 relative cursor-crosshair bg-white shadow-inner w-full min-h-0">
                 <canvas id="main-canvas"></canvas>
                 
                 <div class="absolute bottom-4 right-4 flex gap-2 no-print">
@@ -114,34 +118,44 @@
                     </button>
                 </div>
 
+                <!-- Context Menu -->
                 <div id="context-menu" class="hidden absolute bg-white shadow-2xl rounded-lg border border-gray-200 p-3 z-50 min-w-[150px]">
                     <div id="ctx-title" class="font-bold text-sm mb-2 text-gray-700 border-b pb-1">Figur</div>
                     <div id="ctx-formula" class="text-lg font-mono text-blue-600 mb-2"></div>
-                    <div class="text-xs text-gray-400">Høyreklikk igjen for å lukke</div>
                 </div>
             </div>
 
-            <!-- Formula Bar (Sticky Bottom) -->
-            <div id="formula-bar" class="bg-white border-t border-gray-300 p-4 flex flex-col justify-center shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-20 shrink-0 transition-all duration-300 min-h-[140px]">
+            <!-- Dedicated Formula Panel (Bottom Tab) -->
+            <div class="bg-white border-t border-gray-300 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-20 shrink-0 flex flex-col h-48 transition-all duration-300" id="bottom-panel">
                 
-                <div class="hidden print-only text-xl font-bold mb-4">Figurtall Analyse</div>
+                <!-- Tab Header -->
+                <div class="bg-gray-100 border-b border-gray-200 flex items-center px-4 py-1">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Matematisk Analyse</span>
+                </div>
 
-                <div class="flex flex-wrap items-center justify-center gap-4 md:gap-12">
-                    <div class="text-center">
-                        <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Generell formel</div>
-                        <div id="formula-display" class="text-xl md:text-2xl py-2 px-6 bg-slate-50 rounded-lg border border-slate-200 min-w-[150px]">
-                            $$ F_n = 0 $$
+                <!-- Content -->
+                <div class="flex-1 p-4 overflow-y-auto flex flex-col items-center justify-center">
+                    
+                    <div class="w-full max-w-4xl flex flex-wrap items-center justify-center gap-8">
+                        <!-- General Formula -->
+                        <div class="text-center flex-1 min-w-[200px]">
+                            <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Generell formel ($F_n$)</div>
+                            <div id="formula-display" class="text-xl md:text-2xl py-3 px-6 bg-slate-50 rounded-lg border border-slate-200 w-full overflow-x-auto">
+                                $$ F_n = 0 $$
+                            </div>
+                        </div>
+
+                        <div class="text-2xl text-gray-300 no-print">→</div>
+
+                        <!-- Calculation -->
+                        <div class="text-center flex-1 min-w-[200px]">
+                            <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Verdi for n=<span id="n-val-display">1</span></div>
+                            <div id="calc-display" class="text-lg md:text-xl font-mono text-slate-700 bg-slate-50 py-3 px-6 rounded-lg border border-slate-200 w-full overflow-x-auto">
+                                0 = 0
+                            </div>
                         </div>
                     </div>
 
-                    <div class="text-2xl text-gray-300 no-print">→</div>
-
-                    <div class="text-center">
-                        <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Utregning</div>
-                        <div id="calc-display" class="text-lg md:text-xl font-mono text-slate-700 bg-slate-50 py-2 px-6 rounded-lg border border-slate-200 min-w-[150px]">
-                            0 = 0
-                        </div>
-                    </div>
                 </div>
             </div>
         </section>
