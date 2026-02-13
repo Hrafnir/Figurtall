@@ -1,4 +1,4 @@
-<!-- Version: #6 -->
+<!-- Version: #7 -->
 <!DOCTYPE html>
 <html lang="no">
 <head>
@@ -9,15 +9,13 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- html2canvas for Perfect Screenshots -->
+    <!-- html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
-    <!-- MathJax Configuration -->
+    <!-- MathJax -->
     <script>
         window.MathJax = {
-            startup: {
-                typeset: false 
-            },
+            startup: { typeset: false },
             tex: { 
                 inlineMath: [['$', '$'], ['\\(', '\\)']],
                 displayMath: [['$$', '$$'], ['\\[', '\\]']]
@@ -25,7 +23,6 @@
             svg: { fontCache: 'global' }
         };
     </script>
-    <!-- MathJax Library -->
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
     <link rel="stylesheet" href="style.css">
@@ -36,6 +33,16 @@
     <header class="bg-slate-800 text-white p-3 shadow-md flex justify-between items-center z-30 shrink-0">
         <div class="flex items-center gap-4">
             <h1 class="text-xl font-bold tracking-wider">FIGURTALL<span class="text-blue-400">PRO</span></h1>
+            
+            <!-- View Controls (Restored) -->
+            <div class="flex bg-slate-700 rounded p-1 gap-1 ml-4">
+                <button onclick="app.toggleSidebar()" id="btn-toggle-sidebar" class="px-3 py-1 text-xs rounded bg-slate-600 hover:bg-slate-500 transition text-white">
+                    Sidepanel
+                </button>
+                <button onclick="app.toggleFormula()" id="btn-toggle-formula" class="px-3 py-1 text-xs rounded bg-slate-600 hover:bg-slate-500 transition text-white">
+                    Formler
+                </button>
+            </div>
         </div>
         
         <div class="flex gap-2 relative">
@@ -59,10 +66,10 @@
     </header>
 
     <!-- Main Workspace -->
-    <div class="flex-1 flex overflow-hidden relative">
+    <div class="flex-1 flex overflow-hidden relative" id="workspace-area">
         
         <!-- Left Sidebar -->
-        <aside id="sidebar-panel" class="w-80 bg-white border-r border-gray-200 flex flex-col shadow-lg z-20 shrink-0 h-full overflow-hidden">
+        <aside id="sidebar-panel" class="w-80 bg-white border-r border-gray-200 flex flex-col shadow-lg z-20 shrink-0 h-full overflow-hidden transition-all duration-300">
             
             <!-- N Control -->
             <div class="p-5 border-b border-gray-100 bg-slate-50">
@@ -108,9 +115,8 @@
             </div>
         </aside>
 
-        <!-- Right Section: Canvas + Bottom Formula Panel -->
-        <!-- ID workspace-area legges til her for å kunne ta bilde av hele høyre side -->
-        <section id="workspace-area" class="flex-1 flex flex-col relative overflow-hidden bg-gray-100 h-full">
+        <!-- Right Section -->
+        <section class="flex-1 flex flex-col relative overflow-hidden bg-gray-100 h-full">
             
             <!-- Canvas Area -->
             <div id="canvas-container" class="flex-1 relative cursor-crosshair bg-white shadow-inner w-full min-h-0">
@@ -129,29 +135,20 @@
                 </div>
             </div>
 
-            <!-- Dedicated Formula Panel (Bottom Tab) -->
+            <!-- Formula Panel -->
             <div class="bg-white border-t border-gray-300 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-20 shrink-0 flex flex-col h-48 transition-all duration-300" id="bottom-panel">
-                
-                <!-- Tab Header -->
                 <div class="bg-gray-100 border-b border-gray-200 flex items-center px-4 py-1">
                     <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Matematisk Analyse</span>
                 </div>
-
-                <!-- Content -->
                 <div class="flex-1 p-4 overflow-y-auto flex flex-col items-center justify-center">
-                    
                     <div class="w-full max-w-4xl flex flex-wrap items-center justify-center gap-8">
-                        <!-- General Formula -->
                         <div class="text-center flex-1 min-w-[200px]">
                             <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Generell formel ($F_n$)</div>
                             <div id="formula-display" class="text-xl md:text-2xl py-3 px-6 bg-slate-50 rounded-lg border border-slate-200 w-full overflow-x-auto">
                                 $$ F_n = 0 $$
                             </div>
                         </div>
-
                         <div class="text-2xl text-gray-300 no-print">→</div>
-
-                        <!-- Calculation -->
                         <div class="text-center flex-1 min-w-[200px]">
                             <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Verdi for n=<span id="n-val-display">1</span></div>
                             <div id="calc-display" class="text-lg md:text-xl font-mono text-slate-700 bg-slate-50 py-3 px-6 rounded-lg border border-slate-200 w-full overflow-x-auto">
@@ -159,10 +156,20 @@
                             </div>
                         </div>
                     </div>
-
                 </div>
             </div>
         </section>
+    </div>
+
+    <!-- Hidden Export Staging Area (For Clean PNGs) -->
+    <div id="export-staging" class="fixed top-0 left-0 pointer-events-none opacity-0 z-0 bg-white p-8" style="width: 1000px;">
+        <h2 class="text-2xl font-bold mb-4 text-center">Figurtall Analyse</h2>
+        <div id="export-canvas-wrapper" class="w-full h-[600px] border border-gray-300 mb-4 relative">
+            <!-- Canvas will be cloned here -->
+        </div>
+        <div id="export-formula-wrapper" class="w-full p-4 bg-slate-50 rounded border border-gray-200 text-center">
+            <!-- Formula text will be injected here -->
+        </div>
     </div>
 
     <!-- Modal -->
