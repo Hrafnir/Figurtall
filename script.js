@@ -1,4 +1,4 @@
-/* Version: #7 */
+/* Version: #8 */
 
 const GRID_SIZE = 30; 
 const DOT_RADIUS = 7; 
@@ -143,9 +143,10 @@ const app = {
     selectedIDs: new Set(),
     isDragging: false, isBoxSelecting: false,
     dragStart: {x: 0, y: 0}, boxStart: {x: 0, y: 0},  
+    isRenderingFormula: false,
 
     init() {
-        console.log("Starter Figurtall Pro v7...");
+        console.log("Starter Figurtall Pro v8...");
         this.canvas = document.getElementById('main-canvas');
         this.ctx = this.canvas.getContext('2d');
         
@@ -197,6 +198,44 @@ const app = {
         this.draw();
     },
 
+    // HER ER DRAW FUNKSJONEN SOM MANGLER!
+    draw() {
+        if (!this.ctx) return;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+        const cx = this.cameraOffset.x;
+        const cy = this.cameraOffset.y;
+        this.ctx.clearRect(0, 0, w, h);
+
+        this.ctx.beginPath(); this.ctx.strokeStyle = '#e5e7eb'; this.ctx.lineWidth = 2;
+        this.ctx.moveTo(0, cy); this.ctx.lineTo(w, cy);
+        this.ctx.moveTo(cx, 0); this.ctx.lineTo(cx, h);
+        this.ctx.stroke();
+
+        this.shapes.forEach(shape => {
+            const points = shape.getPoints(this.n);
+            const pos = shape.getCalculatedPos(this.n);
+            const isSelected = this.selectedIDs.has(shape.id);
+            
+            this.ctx.fillStyle = shape.color;
+            this.ctx.strokeStyle = isSelected ? '#2563eb' : 'rgba(0,0,0,0.2)'; 
+            this.ctx.lineWidth = isSelected ? 2 : 1;
+
+            points.forEach(p => {
+                const px = cx + (p.x + pos.x) * GRID_SIZE;
+                const py = cy - (p.y + pos.y) * GRID_SIZE; 
+                this.ctx.beginPath(); this.ctx.arc(px, py, DOT_RADIUS, 0, Math.PI * 2);
+                this.ctx.fill(); this.ctx.stroke();
+            });
+            
+            if (isSelected) {
+                const ox = cx + pos.x * GRID_SIZE;
+                const oy = cy - pos.y * GRID_SIZE;
+                this.ctx.fillStyle = '#000'; this.ctx.fillRect(ox - 2, oy - 2, 4, 4);
+            }
+        });
+    },
+
     copySelection() {
         if (this.selectedIDs.size === 0) return;
         this.clipboard = this.shapes.filter(s => this.selectedIDs.has(s.id));
@@ -207,7 +246,6 @@ const app = {
         this.selectedIDs.clear();
         this.clipboard.forEach(template => {
             const newShape = template.clone(this.nextId++);
-            // Offset for visibility. If formula string, keep as is.
             if (typeof newShape.posX === 'number') newShape.posX += 1;
             if (typeof newShape.posY === 'number') newShape.posY -= 1;
             this.shapes.push(newShape);
@@ -216,34 +254,25 @@ const app = {
         this.updateUI(); this.draw();
     },
 
-    // Smart Add with Softlock/Stacking
     addShape(type) {
         document.getElementById('add-shape-modal').classList.add('hidden');
         const color = DEFAULT_COLORS[this.shapes.length % DEFAULT_COLORS.length];
         const s = new Shape(this.nextId++, type, color);
         
-        // Check if a shape is selected to stack on
+        // Softlock logic
         if (this.selectedIDs.size === 1) {
             const parentId = [...this.selectedIDs][0];
             const parent = this.shapes.find(sh => sh.id === parentId);
             if (parent) {
-                // Stack on top logic
-                // Inherit X
                 s.posX = parent.posX; 
-                // Stack Y: parent Y + n (roughly). Since Y is inverted in math terms (up is +),
-                // we want to be ABOVE parent.
-                // If parent has dynamic Y, append +n.
-                // We assume parent height is approx n.
                 if (typeof parent.posY === 'string') {
                     s.posY = `${parent.posY} + n`;
                 } else {
-                    s.posY = `${parent.posY} + n`; // Convert to formula string to be dynamic
+                    s.posY = `${parent.posY} + n`; 
                 }
-                // Match group
                 if (parent.groupName) s.groupName = parent.groupName;
             }
         } else {
-            // Random placement if nothing selected
             if (this.shapes.length > 0) {
                 s.posX = Math.round(((Math.random() * 4) - 2) * 2) / 2;
                 s.posY = Math.round(((Math.random() * 4) - 2) * 2) / 2;
@@ -260,7 +289,6 @@ const app = {
         this.updateUI(); this.draw();
     },
 
-    // ... (rest of input handling same as before) ...
     getGridPos(e) {
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -319,7 +347,6 @@ const app = {
             const dy = pos.gridY - this.dragStart.y;
             this.shapes.forEach(s => {
                 if (this.selectedIDs.has(s.id)) {
-                    // Convert formula string to number if dragging
                     if (typeof s.posX === 'string') s.posX = evaluateCoord(s.posX, this.n);
                     if (typeof s.posY === 'string') s.posY = evaluateCoord(s.posY, this.n);
                     s.posX += dx; s.posY += dy;
@@ -363,7 +390,6 @@ const app = {
         }
     },
     
-    // ... (delete, group, ungroup, setN same as before) ...
     deleteSelected() {
         if (this.selectedIDs.size === 0) return;
         this.shapes = this.shapes.filter(s => !this.selectedIDs.has(s.id));
@@ -476,11 +502,24 @@ const app = {
     },
     getShapeName(type) { return { 'line': 'Linje', 'square': 'Kvadrat', 'triangle': 'Trekant', 'rectangle': 'Rektangel', 'constant': 'Konst' }[type] || type; },
 
-    // FIX: Check for typesetPromise existence
     updateFormula() {
         const div = document.getElementById('formula-display');
         const calcDiv = document.getElementById('calc-display');
-        if (this.shapes.length === 0) { div.innerHTML = "$$ F_n = 0 $$"; calcDiv.innerText = "0 = 0"; if(window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([div]); return; }
+        
+        // Prevent race condition
+        if (this.isRenderingFormula) return;
+        this.isRenderingFormula = true;
+
+        if (this.shapes.length === 0) { 
+            div.innerHTML = "$$ F_n = 0 $$"; 
+            calcDiv.innerText = "0 = 0"; 
+            if(window.MathJax && MathJax.typesetPromise) {
+                MathJax.typesetPromise([div]).then(() => this.isRenderingFormula = false);
+            } else {
+                this.isRenderingFormula = false;
+            }
+            return; 
+        }
         
         let parts = [], total = 0, cParts = [];
         this.shapes.forEach((s, i) => {
@@ -494,7 +533,11 @@ const app = {
         calcDiv.innerHTML = `${cStr} = <b>${total}</b>`;
         
         if(window.MathJax && MathJax.typesetPromise) {
-            MathJax.typesetPromise([div]).catch(e => console.log(e));
+            MathJax.typesetPromise([div])
+                .then(() => this.isRenderingFormula = false)
+                .catch(() => this.isRenderingFormula = false);
+        } else {
+            this.isRenderingFormula = false;
         }
     },
 
@@ -504,63 +547,21 @@ const app = {
         window.print();
     },
 
-    // NEW EXPORT FUNCTION
     exportPNG(mode) {
-        // mode: 'clean' or 'formula'
-        const tempCanvas = document.createElement('canvas');
-        const w = this.canvas.width;
-        // If formula, add extra height
-        const extraH = mode === 'formula' ? 150 : 0;
-        const h = this.canvas.height + extraH;
+        // mode: 'clean' (kun canvas container) or 'formula' (hele workspace area)
+        let targetId = 'canvas-container';
+        if (mode === 'formula') targetId = 'workspace-area';
         
-        tempCanvas.width = w;
-        tempCanvas.height = h;
-        const tCtx = tempCanvas.getContext('2d');
+        const element = document.getElementById(targetId);
         
-        // White background
-        tCtx.fillStyle = '#ffffff';
-        tCtx.fillRect(0, 0, w, h);
-        
-        // Draw grid (optional, but looks nice in export)
-        // ... (skipping manual grid draw for simplicity, assume white bg is fine)
-        
-        // Draw Main Canvas
-        tCtx.drawImage(this.canvas, 0, 0);
-        
-        if (mode === 'formula') {
-            tCtx.fillStyle = '#f8fafc'; // slate-50
-            tCtx.fillRect(0, this.canvas.height, w, extraH);
-            tCtx.beginPath(); tCtx.moveTo(0, this.canvas.height); tCtx.lineTo(w, this.canvas.height);
-            tCtx.strokeStyle = '#cbd5e1'; tCtx.stroke();
-            
-            tCtx.fillStyle = '#334155';
-            tCtx.font = 'bold 20px sans-serif';
-            tCtx.textAlign = 'center';
-            tCtx.fillText(`Figurnummer n = ${this.n}`, w/2, this.canvas.height + 40);
-            
-            // Render text formula (not LaTeX)
-            let txtF = "Fn = ";
-            let txtC = "";
-            let tot = 0;
-            this.shapes.forEach((s, i) => {
-                const sign = i > 0 ? " + " : "";
-                txtF += sign + s.getFormulaRaw();
-                const v = s.getValue(this.n);
-                tot += v;
-                txtC += sign + v;
-            });
-            txtC += " = " + tot;
-            
-            tCtx.font = 'italic 18px serif';
-            tCtx.fillText(txtF, w/2, this.canvas.height + 80);
-            tCtx.font = '18px monospace';
-            tCtx.fillText(txtC, w/2, this.canvas.height + 115);
-        }
-        
-        const link = document.createElement('a');
-        link.download = 'figurtall-analyse.png';
-        link.href = tempCanvas.toDataURL();
-        link.click();
+        html2canvas(element, {
+            backgroundColor: '#ffffff'
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'figurtall-analyse.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        });
     }
 };
 
