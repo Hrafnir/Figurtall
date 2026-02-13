@@ -1,4 +1,4 @@
-/* Version: #5 */
+/* Version: #6 */
 
 body {
     -webkit-font-smoothing: antialiased;
@@ -54,6 +54,8 @@ input[type=range]:focus { outline: none; }
     to { opacity: 1; transform: scale(1); }
 }
 
+.hidden-layout { display: none !important; }
+
 /* PRINT STYLES */
 @media print {
     .no-print { display: none !important; }
@@ -74,7 +76,6 @@ input[type=range]:focus { outline: none; }
         page-break-after: avoid;
     }
 
-    /* Logic for toggling formulas on print */
     body.print-no-formula #bottom-panel { display: none !important; }
 
     #bottom-panel {
