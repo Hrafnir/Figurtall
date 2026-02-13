@@ -1,4 +1,4 @@
-<!-- Version: #2 -->
+<!-- Version: #3 -->
 <!DOCTYPE html>
 <html lang="no">
 <head>
@@ -22,27 +22,44 @@
 </head>
 <body class="bg-gray-100 h-screen flex flex-col text-gray-800 font-sans">
 
-    <!-- Header (Hidden on print) -->
-    <header class="bg-slate-800 text-white p-3 shadow-md flex justify-between items-center no-print">
+    <!-- Header -->
+    <header id="main-header" class="bg-slate-800 text-white p-3 shadow-md flex justify-between items-center no-print transition-all duration-300">
         <div class="flex items-center gap-4">
             <h1 class="text-xl font-bold tracking-wider">FIGURTALL<span class="text-blue-400">PRO</span></h1>
-            <span class="text-xs text-slate-400 border-l border-slate-600 pl-4">Utforsk mønstre og formler</span>
+            
+            <!-- View Controls -->
+            <div class="flex bg-slate-700 rounded p-1 gap-1 ml-4">
+                <button onclick="app.toggleSidebar()" id="btn-toggle-sidebar" class="px-3 py-1 text-xs rounded bg-slate-600 hover:bg-slate-500 transition text-white" title="Vis/Skjul Sidepanel">
+                    Sidepanel
+                </button>
+                <button onclick="app.toggleFormula()" id="btn-toggle-formula" class="px-3 py-1 text-xs rounded bg-slate-600 hover:bg-slate-500 transition text-white" title="Vis/Skjul Formel">
+                    Formler
+                </button>
+            </div>
         </div>
-        <div class="flex gap-2">
-            <button onclick="app.exportPNG()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-sm flex items-center gap-2 transition">
-                <span>📷</span> Lagre PNG
-            </button>
-            <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-sm flex items-center gap-2 transition font-bold">
-                <span>🖨️</span> Skriv ut
-            </button>
+        
+        <div class="flex gap-2 relative">
+            <!-- Export Menu -->
+            <div class="relative group">
+                <button class="bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-sm flex items-center gap-2 transition">
+                    💾 Lagre / Print ▼
+                </button>
+                <div class="absolute right-0 mt-1 w-48 bg-white text-gray-800 rounded shadow-xl border border-gray-200 hidden group-hover:block z-50">
+                    <button onclick="app.exportPNG(false)" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">PNG (Kun tegning)</button>
+                    <button onclick="app.exportPNG(true)" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">PNG (Med formler)</button>
+                    <div class="border-t border-gray-100 my-1"></div>
+                    <button onclick="app.printApp(false)" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">Skriv ut (Kun tegning)</button>
+                    <button onclick="app.printApp(true)" class="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm">Skriv ut (Alt)</button>
+                </div>
+            </div>
         </div>
     </header>
 
     <!-- Main Content -->
     <main class="flex-1 flex overflow-hidden">
         
-        <!-- Left Panel: Controls (Hidden on print) -->
-        <aside class="w-80 bg-white border-r border-gray-200 flex flex-col shadow-lg z-10 no-print overflow-hidden">
+        <!-- Left Panel: Controls -->
+        <aside id="sidebar-panel" class="w-80 bg-white border-r border-gray-200 flex flex-col shadow-lg z-10 no-print transition-all duration-300">
             
             <!-- N-Slider -->
             <div class="p-5 border-b border-gray-100 bg-slate-50">
@@ -74,15 +91,11 @@
             <div id="selection-panel" class="p-4 bg-yellow-50 border-b border-yellow-100 hidden">
                 <h3 class="text-xs font-bold text-yellow-800 uppercase mb-2">Valgte elementer</h3>
                 
-                <!-- Quick Color Palette -->
                 <div class="mb-3">
-                    <div class="text-[10px] text-yellow-700 mb-1">Hurtigfarger (fra tegning):</div>
-                    <div id="quick-palette" class="flex flex-wrap gap-1">
-                        <!-- Colors injected by JS -->
-                    </div>
+                    <div class="text-[10px] text-yellow-700 mb-1">Hurtigfarger:</div>
+                    <div id="quick-palette" class="flex flex-wrap gap-1"></div>
                 </div>
 
-                <!-- Bulk Transform -->
                 <div class="flex gap-1">
                      <button onclick="app.flipSelected('x')" class="flex-1 bg-white border border-yellow-300 text-yellow-800 text-xs py-1 rounded hover:bg-yellow-100">↔ Speil X</button>
                      <button onclick="app.flipSelected('y')" class="flex-1 bg-white border border-yellow-300 text-yellow-800 text-xs py-1 rounded hover:bg-yellow-100">↕ Speil Y</button>
@@ -91,9 +104,7 @@
 
             <!-- Layers List -->
             <div class="flex-1 overflow-y-auto bg-gray-50">
-                <div id="layers-list" class="p-2 space-y-2">
-                    <!-- Items injected by JS -->
-                </div>
+                <div id="layers-list" class="p-2 space-y-2"></div>
             </div>
         </aside>
 
@@ -104,22 +115,27 @@
             <div id="canvas-container" class="flex-1 w-full h-full relative cursor-crosshair bg-white shadow-inner">
                 <canvas id="main-canvas"></canvas>
                 
-                <!-- Controls Overlay (Zoom/Center) - Optional enhancement -->
+                <!-- Center Button -->
                 <div class="absolute bottom-4 right-4 flex gap-2 no-print">
                     <button onclick="app.centerCamera()" class="bg-white p-2 rounded-full shadow text-gray-600 hover:text-blue-600" title="Sentrer Visning">
                         🎯
                     </button>
                 </div>
+
+                <!-- Custom Context Menu (Right Click) -->
+                <div id="context-menu" class="hidden absolute bg-white shadow-2xl rounded-lg border border-gray-200 p-3 z-50 min-w-[150px]">
+                    <div id="ctx-title" class="font-bold text-sm mb-2 text-gray-700 border-b pb-1">Figur</div>
+                    <div id="ctx-formula" class="text-lg font-mono text-blue-600 mb-2"></div>
+                    <div class="text-xs text-gray-400">Høyreklikk igjen for å lukke</div>
+                </div>
             </div>
 
             <!-- Bottom Formula Bar -->
-            <div class="min-h-[120px] bg-white border-t border-gray-300 p-4 flex flex-col justify-center shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-20 relative">
+            <div id="formula-bar" class="min-h-[120px] bg-white border-t border-gray-300 p-4 flex flex-col justify-center shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-20 relative transition-all duration-300">
                 
-                <!-- Print-only Title -->
                 <div class="hidden print-only text-xl font-bold mb-4">Figurtall Analyse</div>
 
                 <div class="flex flex-wrap items-center justify-center gap-4 md:gap-12">
-                    <!-- General Formula -->
                     <div class="text-center">
                         <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Generell formel</div>
                         <div id="formula-display" class="text-xl md:text-2xl py-2 px-6 bg-slate-50 rounded-lg border border-slate-200 min-w-[150px]">
@@ -127,20 +143,14 @@
                         </div>
                     </div>
 
-                    <!-- Arrow -->
                     <div class="text-2xl text-gray-300 no-print">→</div>
 
-                    <!-- Calculation -->
                     <div class="text-center">
                         <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Utregning</div>
                         <div id="calc-display" class="text-lg md:text-xl font-mono text-slate-700 bg-slate-50 py-2 px-6 rounded-lg border border-slate-200 min-w-[150px]">
                             0 = 0
                         </div>
                     </div>
-                </div>
-                
-                <div class="absolute bottom-2 right-2 text-[10px] text-gray-300 no-print">
-                    MathJax Enabled
                 </div>
             </div>
         </section>
