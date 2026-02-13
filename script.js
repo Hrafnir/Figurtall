@@ -1,9 +1,9 @@
-/* Version: #4 */
+/* Version: #5 */
 
 // === KONFIGURASJON ===
 const GRID_SIZE = 30; 
 const DOT_RADIUS = 7; 
-const HIT_RADIUS = 0.6; // Grid units (ca 18px)
+const HIT_RADIUS = 0.6; 
 const DEFAULT_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#a855f7', '#f97316', '#06b6d4'];
 
 // === HJELPEFUNKSJONER ===
@@ -31,9 +31,9 @@ class Shape {
         // Transformasjon
         this.offsetX = 0; 
         this.offsetY = 0; 
-        this.rotation = 0; // 0-360
-        this.flipX = 1;    // 1 eller -1
-        this.flipY = 1;    // 1 eller -1
+        this.rotation = 0; 
+        this.flipX = 1;    
+        this.flipY = 1;    
         
         // Egenskaper
         this.nOffset = 0; 
@@ -47,13 +47,11 @@ class Shape {
         return eff < 1 ? 0 : eff; 
     }
 
-    // Returnerer punkter relativt til figurens origo (0,0)
     getPoints(globalN) {
         let points = [];
         const n = this.getEffectiveN(globalN);
         if (n <= 0) return []; 
         
-        // 1. Generer basispunkter
         switch (this.type) {
             case 'line': 
                 for (let i = 0; i < n; i++) points.push({x: i, y: 0});
@@ -65,14 +63,14 @@ class Shape {
                     }
                 }
                 break;
-            case 'rectangle': // n * (n+1)
+            case 'rectangle': 
                 for (let y = 0; y < n; y++) {
                     for (let x = 0; x < n + 1; x++) {
                         points.push({x: x, y: y});
                     }
                 }
                 break;
-            case 'triangle': // Trapp
+            case 'triangle': 
                 for (let y = 0; y < n; y++) {
                     for (let x = 0; x <= y; x++) {
                         points.push({x: x, y: y});
@@ -84,27 +82,18 @@ class Shape {
                 break;
         }
 
-        // 2. Transformer punkter (Flip -> Rotate)
         return points.map(p => {
-            // Flip (skjer før rotasjon for intuitiv oppførsel)
             let tx = p.x * this.flipX;
             let ty = p.y * this.flipY;
-            
-            // Rotate
             return rotatePoint(tx, ty, this.rotation);
         });
     }
 
-    // Sjekker om et grid-punkt (x,y) treffer denne figuren
     hitTest(globalN, gridX, gridY) {
-        // Vi sjekker avstand til hvert punkt i figuren
         const points = this.getPoints(globalN);
-        // Konverter figurens punkter til verdens-koordinater
         for (let p of points) {
             const wx = p.x + this.offsetX;
             const wy = p.y + this.offsetY;
-            
-            // Enkel sirkel-kollisjon
             const dist = Math.sqrt((wx - gridX)**2 + (wy - gridY)**2);
             if (dist < HIT_RADIUS) return true;
         }
@@ -112,35 +101,35 @@ class Shape {
     }
 
     getFormulaLatex() {
-        const c = this.color;
+        // Enkel tekstversjon for popup (kan ikke rendre latex i canvas context menu lett)
+        return this.getFormulaRaw();
+    }
+
+    getFormulaRaw() {
         let nStr = "n";
-        
         if (this.nOffset > 0) nStr = `(n+${this.nOffset})`;
         else if (this.nOffset < 0) nStr = `(n-${Math.abs(this.nOffset)})`;
-        
-        let term = "";
+
         switch (this.type) {
-            case 'line': term = nStr; break;
-            case 'square': term = `${nStr}^2`; break;
-            case 'rectangle': 
-                if (this.nOffset === 0) term = "n(n+1)";
-                else {
-                    const nPlusOne = this.nOffset + 1;
-                    const nextStr = nPlusOne > 0 ? `(n+${nPlusOne})` : (nPlusOne === 0 ? "n" : `(n${nPlusOne})`);
-                    term = `${nStr}${nextStr}`;
-                }
-                break;
-            case 'triangle': 
-                if (this.nOffset === 0) term = "\\frac{n(n+1)}{2}";
-                else {
-                    const nPlusOne = this.nOffset + 1;
-                    const nextStr = nPlusOne > 0 ? `(n+${nPlusOne})` : (nPlusOne === 0 ? "n" : `(n${nPlusOne})`);
-                    term = `\\frac{${nStr}${nextStr}}{2}`;
-                }
-                break;
-            case 'constant': term = this.constantValue.toString(); break;
+            case 'line': return nStr;
+            case 'square': return `${nStr}^2`;
+            case 'rectangle': return this.nOffset === 0 ? "n(n+1)" : `${nStr}(n+${this.nOffset+1})`;
+            case 'triangle': return `${nStr}(${nStr}+1)/2`;
+            case 'constant': return this.constantValue.toString();
         }
-        return `\\color{${c}}{${term}}`;
+        return "";
+    }
+
+    getFormulaLatexStyled() {
+        // For MathJax
+        const c = this.color;
+        let raw = this.getFormulaRaw();
+        // Konverter til LaTeX syntaks
+        let tex = raw.replace(/\^2/g, "^2");
+        if (this.type === 'triangle') {
+            tex = "\\frac{" + raw.replace("/2", "") + "}{2}";
+        }
+        return `\\color{${c}}{${tex}}`;
     }
 
     getValue(globalN) {
@@ -161,29 +150,30 @@ class Shape {
 const app = {
     canvas: null,
     ctx: null,
-    marquee: null, // HTML element for selection box
+    marquee: null,
     
     n: 1,
     shapes: [],
     nextId: 1,
     
-    // Viewport
     cameraOffset: {x: 0, y: 0},
     
-    // Selection & Interaction State
-    selectedIDs: new Set(), // Set of shape IDs
+    selectedIDs: new Set(),
     isDragging: false,
     isBoxSelecting: false,
     
-    dragStart: {x: 0, y: 0}, // Grid coords
-    boxStart: {x: 0, y: 0},  // Pixel coords for marquee
+    dragStart: {x: 0, y: 0}, 
+    boxStart: {x: 0, y: 0},  
     
+    // UI State
+    showSidebar: true,
+    showFormula: true,
+
     init() {
-        console.log("Starter Figurtall Pro v4...");
+        console.log("Starter Figurtall Pro v5...");
         this.canvas = document.getElementById('main-canvas');
         this.ctx = this.canvas.getContext('2d');
         
-        // Opprett selection marquee element dynamisk hvis det mangler i HTML
         let m = document.querySelector('.selection-marquee');
         if (!m) {
             m = document.createElement('div');
@@ -192,33 +182,32 @@ const app = {
         }
         this.marquee = m;
 
-        // Listeners
         window.addEventListener('resize', () => this.resizeCanvas());
         
-        // Mouse / Touch
         const container = document.getElementById('canvas-container');
         container.addEventListener('mousedown', (e) => this.handleMouseDown(e));
         window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         window.addEventListener('mouseup', (e) => this.handleMouseUp(e));
         
-        // Keyboard (Group 'g', Delete)
+        // Context Menu (Right Click)
+        container.addEventListener('contextmenu', (e) => this.handleContextMenu(e));
+        window.addEventListener('click', () => {
+            document.getElementById('context-menu').classList.add('hidden');
+        });
+
         window.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT') return; // Ignorer hvis man skriver i input
+            if (e.target.tagName === 'INPUT') return; 
             if (e.key === 'g') this.groupSelected();
             if (e.key === 'Delete' || e.key === 'Backspace') this.deleteSelected();
         });
 
-        // UI Inputs
         document.getElementById('n-slider').addEventListener('input', (e) => this.setN(parseInt(e.target.value)));
         
-        // === FIX: Koble til 'Legg til Figur' knappen ===
         const btnAdd = document.getElementById('btn-add-shape');
         if (btnAdd) {
             btnAdd.addEventListener('click', () => {
                 document.getElementById('add-shape-modal').classList.remove('hidden');
             });
-        } else {
-            console.error("Fant ikke knapp: btn-add-shape");
         }
 
         this.resizeCanvas();
@@ -229,11 +218,44 @@ const app = {
         const container = document.getElementById('canvas-container');
         this.canvas.width = container.clientWidth;
         this.canvas.height = container.clientHeight;
-        
-        // Sentrer kamera initielt
         this.cameraOffset.x = Math.floor(this.canvas.width / 2);
         this.cameraOffset.y = Math.floor(this.canvas.height / 2);
         this.draw();
+    },
+
+    // === VISNINGSKONTROLL ===
+    toggleSidebar() {
+        this.showSidebar = !this.showSidebar;
+        const panel = document.getElementById('sidebar-panel');
+        const btn = document.getElementById('btn-toggle-sidebar');
+        
+        if (this.showSidebar) {
+            panel.classList.remove('hidden-layout');
+            btn.classList.remove('opacity-50');
+            btn.innerText = "Sidepanel";
+        } else {
+            panel.classList.add('hidden-layout');
+            btn.classList.add('opacity-50');
+            btn.innerText = "Vis Sidepanel";
+        }
+        setTimeout(() => this.resizeCanvas(), 50); // Resize canvas after layout change
+    },
+
+    toggleFormula() {
+        this.showFormula = !this.showFormula;
+        const bar = document.getElementById('formula-bar');
+        const btn = document.getElementById('btn-toggle-formula');
+        
+        if (this.showFormula) {
+            bar.classList.remove('hidden-layout');
+            btn.classList.remove('opacity-50');
+            btn.innerText = "Formler";
+        } else {
+            bar.classList.add('hidden-layout');
+            btn.classList.add('opacity-50');
+            btn.innerText = "Vis Formler";
+        }
+        setTimeout(() => this.resizeCanvas(), 50);
     },
 
     // === INPUT HANDLING ===
@@ -244,19 +266,18 @@ const app = {
         const x = clientX - rect.left;
         const y = clientY - rect.top;
         
-        // Grid conversion (Y inverted)
         const gridX = (x - this.cameraOffset.x) / GRID_SIZE;
         const gridY = (this.cameraOffset.y - y) / GRID_SIZE;
         
-        return { x, y, gridX, gridY, clientX, clientY }; // x,y are pixels relative to canvas
+        return { x, y, gridX, gridY, clientX, clientY }; 
     },
 
-    handleMouseDown(e) {
+    handleContextMenu(e) {
+        e.preventDefault();
         const pos = this.getGridPos(e);
         
-        // 1. Sjekk treff
+        // Sjekk treff
         let hitShape = null;
-        // Sjekk øverste lag først (omvendt loop)
         for (let i = this.shapes.length - 1; i >= 0; i--) {
             if (this.shapes[i].hitTest(this.n, pos.gridX, pos.gridY)) {
                 hitShape = this.shapes[i];
@@ -265,23 +286,49 @@ const app = {
         }
 
         if (hitShape) {
-            // Klikket på en figur
+            const menu = document.getElementById('context-menu');
+            const title = document.getElementById('ctx-title');
+            const formula = document.getElementById('ctx-formula');
+            
+            // Set content
+            title.innerText = this.getShapeName(hitShape.type) + (hitShape.groupName ? ` (${hitShape.groupName})` : '');
+            title.style.color = hitShape.color;
+            formula.innerText = hitShape.getFormulaRaw();
+            
+            // Position
+            menu.style.left = e.clientX + 'px';
+            menu.style.top = e.clientY + 'px';
+            menu.classList.remove('hidden');
+        } else {
+            document.getElementById('context-menu').classList.add('hidden');
+        }
+    },
+
+    handleMouseDown(e) {
+        if(e.button === 2) return; // Ignore right click logic here
+        const pos = this.getGridPos(e);
+        
+        let hitShape = null;
+        for (let i = this.shapes.length - 1; i >= 0; i--) {
+            if (this.shapes[i].hitTest(this.n, pos.gridX, pos.gridY)) {
+                hitShape = this.shapes[i];
+                break;
+            }
+        }
+
+        if (hitShape) {
             const alreadySelected = this.selectedIDs.has(hitShape.id);
             
             if (e.shiftKey) {
-                // Toggle selection
                 if (alreadySelected) this.selectedIDs.delete(hitShape.id);
                 else this.selectedIDs.add(hitShape.id);
             } else {
-                // Hvis man klikker på en uvalgt figur uten shift, velg KUN den.
-                // Hvis man klikker på en ALLEREDE valgt figur, behold utvalget (for å kunne dra gruppen)
                 if (!alreadySelected) {
                     this.selectedIDs.clear();
                     this.selectedIDs.add(hitShape.id);
                 }
             }
             
-            // Hvis figuren er del av en gruppe, velg alle i gruppen (hvis ikke shift holdes)
             if (!e.shiftKey && hitShape.groupName) {
                 this.shapes.forEach(s => {
                     if (s.groupName === hitShape.groupName) this.selectedIDs.add(s.id);
@@ -290,17 +337,15 @@ const app = {
 
             this.isDragging = true;
             this.dragStart = { x: pos.gridX, y: pos.gridY };
-            this.updateUI(); // Oppdater sidepanel
+            this.updateUI(); 
         } else {
-            // Klikket i tomt rom -> Start Box Selection
             if (!e.shiftKey) {
                 this.selectedIDs.clear();
                 this.updateUI();
             }
             this.isBoxSelecting = true;
-            this.boxStart = { x: pos.x, y: pos.y }; // Pixel coords
+            this.boxStart = { x: pos.x, y: pos.y }; 
             
-            // Reset marquee style
             this.marquee.style.display = 'block';
             this.marquee.style.left = pos.x + 'px';
             this.marquee.style.top = pos.y + 'px';
@@ -329,7 +374,6 @@ const app = {
             this.draw();
         } 
         else if (this.isBoxSelecting) {
-            // Oppdater visuell boks
             const currentX = pos.x;
             const currentY = pos.y;
             
@@ -344,7 +388,6 @@ const app = {
             this.marquee.style.height = h + 'px';
         } 
         else {
-            // Hover cursor logic
             let hit = this.shapes.some(s => s.hitTest(this.n, pos.gridX, pos.gridY));
             this.canvas.style.cursor = hit ? "move" : "crosshair";
         }
@@ -353,30 +396,28 @@ const app = {
     handleMouseUp(e) {
         if (this.isDragging) {
             this.isDragging = false;
-            // Snap to grid for alle flyttede
+            // Snap to grid (0.5 steps)
             this.shapes.forEach(s => {
                 if (this.selectedIDs.has(s.id)) {
-                    s.offsetX = Math.round(s.offsetX);
-                    s.offsetY = Math.round(s.offsetY);
+                    // Round to nearest 0.5
+                    s.offsetX = Math.round(s.offsetX * 2) / 2;
+                    s.offsetY = Math.round(s.offsetY * 2) / 2;
                 }
             });
             this.draw();
+            this.updateUI();
         }
         
         if (this.isBoxSelecting) {
             this.isBoxSelecting = false;
             this.marquee.style.display = 'none';
             
-            // Beregn seleksjon
             const pos = this.getGridPos(e);
-            
-            // Boks grenser i Pixels (relativt til canvas)
             const bX1 = Math.min(this.boxStart.x, pos.x);
             const bX2 = Math.max(this.boxStart.x, pos.x);
             const bY1 = Math.min(this.boxStart.y, pos.y);
             const bY2 = Math.max(this.boxStart.y, pos.y);
             
-            // Sjekk alle figurer om origo er inni boksen
             this.shapes.forEach(s => {
                 const px = this.cameraOffset.x + (s.offsetX * GRID_SIZE);
                 const py = this.cameraOffset.y - (s.offsetY * GRID_SIZE);
@@ -396,12 +437,9 @@ const app = {
         const color = DEFAULT_COLORS[this.shapes.length % DEFAULT_COLORS.length];
         const s = new Shape(this.nextId++, type, color);
         
-        // Plasser litt tilfeldig rundt midten hvis det er fullt
         if (this.shapes.length > 0) {
-            s.offsetX = (Math.random() * 4) - 2;
-            s.offsetY = (Math.random() * 4) - 2;
-            s.offsetX = Math.round(s.offsetX);
-            s.offsetY = Math.round(s.offsetY);
+            s.offsetX = Math.round(((Math.random() * 4) - 2) * 2) / 2;
+            s.offsetY = Math.round(((Math.random() * 4) - 2) * 2) / 2;
         }
         
         if (type === 'constant') {
@@ -410,8 +448,6 @@ const app = {
         }
 
         this.shapes.push(s);
-        
-        // Auto-select den nye
         this.selectedIDs.clear();
         this.selectedIDs.add(s.id);
         
@@ -458,18 +494,17 @@ const app = {
         this.updateFormula();
     },
 
-    // Bulk updates fra UI
     updateSelectedProp(prop, val) {
         this.shapes.forEach(s => {
             if (this.selectedIDs.has(s.id)) {
                 if (prop === 'color') s.color = val;
                 if (prop === 'nOffset') s.nOffset = parseInt(val) || 0;
-                if (prop === 'rotation') s.rotation = parseInt(val) || 0;
+                if (prop === 'rotation') s.rotation = parseFloat(val) || 0;
             }
         });
         this.draw();
         this.updateFormula();
-        if (prop === 'color') this.updateUI(); // Refresh palette
+        if (prop === 'color') this.updateUI(); 
     },
     
     flipSelected(axis) {
@@ -497,12 +532,10 @@ const app = {
         }
         panel.classList.remove('hidden');
 
-        // Hurtigfarger: Finn alle unike farger som brukes nå
         const usedColors = [...new Set(this.shapes.map(s => s.color))];
         const palette = document.getElementById('quick-palette');
         palette.innerHTML = '';
         
-        // Legg til standardfarger også
         const allColors = [...new Set([...usedColors, ...DEFAULT_COLORS])];
 
         allColors.forEach(c => {
@@ -511,7 +544,6 @@ const app = {
             btn.style.backgroundColor = c;
             btn.onclick = () => {
                 this.updateSelectedProp('color', c);
-                // Oppdater fargevelgere i listen manuelt eller refresh hele UI
                 this.renderLayersList();
             };
             palette.appendChild(btn);
@@ -528,9 +560,7 @@ const app = {
             const el = document.createElement('div');
             el.className = `p-3 rounded border transition mb-2 ${isSelected ? 'bg-blue-50 border-blue-300 shadow-md ring-1 ring-blue-300' : 'bg-white border-gray-200 shadow-sm'}`;
             
-            // Klikk på listen velger også
             el.onclick = (e) => {
-                // Unngå loop hvis man klikker på inputs
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
                 
                 if (!e.shiftKey) this.selectedIDs.clear();
@@ -541,7 +571,6 @@ const app = {
                 this.draw();
             };
 
-            // Header
             const header = document.createElement('div');
             header.className = "flex justify-between items-center mb-2";
             
@@ -559,17 +588,19 @@ const app = {
                         class="text-gray-400 hover:text-red-500 font-bold px-2">&times;</button>
             `;
 
-            // Controls (Offset & Rotation)
             const controls = document.createElement('div');
             controls.className = "grid grid-cols-2 gap-2 text-xs";
             
+            // Lagt til input for rotasjon
             controls.innerHTML = `
                 <div>
                     <label class="text-gray-400">Rotasjon</label>
                     <div class="flex items-center gap-1">
-                        <input type="range" min="0" max="360" value="${shape.rotation}" 
+                        <input type="range" min="0" max="360" step="5" value="${shape.rotation}" 
                                class="w-full"
-                               oninput="app.shapes.find(s=>s.id===${shape.id}).rotation=parseInt(this.value); app.draw();">
+                               oninput="app.shapes.find(s=>s.id===${shape.id}).rotation=parseInt(this.value); this.nextElementSibling.value=this.value; app.draw();">
+                        <input type="number" class="w-10 border rounded px-1 text-center" value="${shape.rotation}"
+                               onchange="app.shapes.find(s=>s.id===${shape.id}).rotation=parseFloat(this.value); this.previousElementSibling.value=this.value; app.draw();">
                     </div>
                 </div>
                 <div>
@@ -600,27 +631,24 @@ const app = {
 
         this.ctx.clearRect(0, 0, w, h);
 
-        // Tegn akser
         this.ctx.beginPath();
-        this.ctx.strokeStyle = '#e5e7eb'; // Veldig lys grå
+        this.ctx.strokeStyle = '#e5e7eb'; 
         this.ctx.lineWidth = 2;
         this.ctx.moveTo(0, cy); this.ctx.lineTo(w, cy);
         this.ctx.moveTo(cx, 0); this.ctx.lineTo(cx, h);
         this.ctx.stroke();
 
-        // Tegn figurer
         this.shapes.forEach(shape => {
             const points = shape.getPoints(this.n);
             const isSelected = this.selectedIDs.has(shape.id);
             
             this.ctx.fillStyle = shape.color;
-            this.ctx.strokeStyle = isSelected ? '#2563eb' : 'rgba(0,0,0,0.2)'; // Blå outline hvis valgt
+            this.ctx.strokeStyle = isSelected ? '#2563eb' : 'rgba(0,0,0,0.2)'; 
             this.ctx.lineWidth = isSelected ? 2 : 1;
 
             points.forEach(p => {
-                // Grid til Pixel
                 const px = cx + (p.x + shape.offsetX) * GRID_SIZE;
-                const py = cy - (p.y + shape.offsetY) * GRID_SIZE; // Inverter Y
+                const py = cy - (p.y + shape.offsetY) * GRID_SIZE; 
 
                 this.ctx.beginPath();
                 this.ctx.arc(px, py, DOT_RADIUS, 0, Math.PI * 2);
@@ -628,7 +656,6 @@ const app = {
                 this.ctx.stroke();
             });
             
-            // Tegn origo-markør for figuren hvis den er valgt
             if (isSelected) {
                 const ox = cx + shape.offsetX * GRID_SIZE;
                 const oy = cy - shape.offsetY * GRID_SIZE;
@@ -655,7 +682,7 @@ const app = {
         
         this.shapes.forEach((s, i) => {
             const sign = i > 0 ? "+" : "";
-            parts.push(`${sign} ${s.getFormulaLatex()}`);
+            parts.push(`${sign} ${s.getFormulaLatexStyled()}`);
             
             const v = s.getValue(this.n);
             total += v;
@@ -671,15 +698,57 @@ const app = {
         if(window.MathJax) MathJax.typesetPromise([div]).catch(e => {});
     },
 
-    exportPNG() {
+    // === EXPORT & PRINT ===
+    printApp(withFormula) {
+        if (withFormula) {
+            document.body.classList.remove('print-no-formula');
+        } else {
+            document.body.classList.add('print-no-formula');
+        }
+        window.print();
+    },
+
+    exportPNG(withFormula) {
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = this.canvas.width;
-        tempCanvas.height = this.canvas.height;
+        // Hvis withFormula, legg til plass nederst
+        const bottomPadding = withFormula ? 100 : 0;
+        tempCanvas.height = this.canvas.height + bottomPadding;
+        
         const tCtx = tempCanvas.getContext('2d');
         
+        // Fyll hvit
         tCtx.fillStyle = '#ffffff';
         tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        
+        // Tegn hovedcanvas
         tCtx.drawImage(this.canvas, 0, 0);
+        
+        // Tegn formeltekst hvis ønskelig
+        if (withFormula) {
+            tCtx.fillStyle = '#000000';
+            tCtx.font = '20px sans-serif';
+            tCtx.textAlign = 'center';
+            
+            // Generer en enkel tekststreng for formelen
+            let txtFormula = "Fn = ";
+            let txtCalc = "";
+            let total = 0;
+            
+            this.shapes.forEach((s, i) => {
+                const sign = i > 0 ? " + " : "";
+                txtFormula += sign + s.getFormulaRaw();
+                const v = s.getValue(this.n);
+                total += v;
+                txtCalc += sign + v;
+            });
+            
+            txtCalc += " = " + total;
+            
+            tCtx.fillText("Figurnummer (n=" + this.n + ")", tempCanvas.width/2, this.canvas.height + 30);
+            tCtx.fillText(txtFormula, tempCanvas.width/2, this.canvas.height + 60);
+            tCtx.fillText(txtCalc, tempCanvas.width/2, this.canvas.height + 85);
+        }
         
         const link = document.createElement('a');
         link.download = 'figurtall-analyse.png';
@@ -688,7 +757,6 @@ const app = {
     }
 };
 
-// === GLOBAL ASSIGNMENT ===
 window.app = app;
 
 document.addEventListener('DOMContentLoaded', () => {
