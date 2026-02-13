@@ -1,4 +1,4 @@
-/* Version: #8 */
+/* Version: #9 */
 
 const GRID_SIZE = 30; 
 const DOT_RADIUS = 7; 
@@ -144,9 +144,10 @@ const app = {
     isDragging: false, isBoxSelecting: false,
     dragStart: {x: 0, y: 0}, boxStart: {x: 0, y: 0},  
     isRenderingFormula: false,
+    showSidebar: true, showFormula: true,
 
     init() {
-        console.log("Starter Figurtall Pro v8...");
+        console.log("Starter Figurtall Pro v9...");
         this.canvas = document.getElementById('main-canvas');
         this.ctx = this.canvas.getContext('2d');
         
@@ -181,7 +182,6 @@ const app = {
         if (btnAdd) btnAdd.addEventListener('click', () => document.getElementById('add-shape-modal').classList.remove('hidden'));
 
         this.resizeCanvas();
-        // Wait for MathJax
         if (window.MathJax && MathJax.startup && MathJax.startup.promise) {
             MathJax.startup.promise.then(() => this.updateUI());
         } else {
@@ -198,7 +198,6 @@ const app = {
         this.draw();
     },
 
-    // HER ER DRAW FUNKSJONEN SOM MANGLER!
     draw() {
         if (!this.ctx) return;
         const w = this.canvas.width;
@@ -217,6 +216,8 @@ const app = {
             const pos = shape.getCalculatedPos(this.n);
             const isSelected = this.selectedIDs.has(shape.id);
             
+            // Set Alpha for overlap visibility
+            this.ctx.globalAlpha = 0.9;
             this.ctx.fillStyle = shape.color;
             this.ctx.strokeStyle = isSelected ? '#2563eb' : 'rgba(0,0,0,0.2)'; 
             this.ctx.lineWidth = isSelected ? 2 : 1;
@@ -227,6 +228,7 @@ const app = {
                 this.ctx.beginPath(); this.ctx.arc(px, py, DOT_RADIUS, 0, Math.PI * 2);
                 this.ctx.fill(); this.ctx.stroke();
             });
+            this.ctx.globalAlpha = 1.0;
             
             if (isSelected) {
                 const ox = cx + pos.x * GRID_SIZE;
@@ -236,39 +238,63 @@ const app = {
         });
     },
 
-    copySelection() {
-        if (this.selectedIDs.size === 0) return;
-        this.clipboard = this.shapes.filter(s => this.selectedIDs.has(s.id));
+    // RESTORED TOGGLE FUNCTIONS
+    toggleSidebar() {
+        this.showSidebar = !this.showSidebar;
+        const panel = document.getElementById('sidebar-panel');
+        const btn = document.getElementById('btn-toggle-sidebar');
+        
+        if (this.showSidebar) {
+            panel.classList.remove('hidden-layout');
+            btn.classList.remove('opacity-50');
+            btn.innerText = "Sidepanel";
+        } else {
+            panel.classList.add('hidden-layout');
+            btn.classList.add('opacity-50');
+            btn.innerText = "Vis Sidepanel";
+        }
+        setTimeout(() => this.resizeCanvas(), 50); 
     },
 
-    pasteSelection() {
-        if (this.clipboard.length === 0) return;
-        this.selectedIDs.clear();
-        this.clipboard.forEach(template => {
-            const newShape = template.clone(this.nextId++);
-            if (typeof newShape.posX === 'number') newShape.posX += 1;
-            if (typeof newShape.posY === 'number') newShape.posY -= 1;
-            this.shapes.push(newShape);
-            this.selectedIDs.add(newShape.id);
-        });
-        this.updateUI(); this.draw();
+    toggleFormula() {
+        this.showFormula = !this.showFormula;
+        const bar = document.getElementById('bottom-panel');
+        const btn = document.getElementById('btn-toggle-formula');
+        
+        if (this.showFormula) {
+            bar.classList.remove('hidden-layout');
+            btn.classList.remove('opacity-50');
+            btn.innerText = "Formler";
+        } else {
+            bar.classList.add('hidden-layout');
+            btn.classList.add('opacity-50');
+            btn.innerText = "Vis Formler";
+        }
+        setTimeout(() => this.resizeCanvas(), 50);
     },
 
+    // SMART ADD WITH DYNAMIC STACKING
     addShape(type) {
         document.getElementById('add-shape-modal').classList.add('hidden');
         const color = DEFAULT_COLORS[this.shapes.length % DEFAULT_COLORS.length];
         const s = new Shape(this.nextId++, type, color);
         
-        // Softlock logic
+        // Smart Stacking
         if (this.selectedIDs.size === 1) {
             const parentId = [...this.selectedIDs][0];
             const parent = this.shapes.find(sh => sh.id === parentId);
             if (parent) {
                 s.posX = parent.posX; 
+                // Determine height of parent to stack on top
+                // Simple heuristic: if parent is n-based, add +n.
+                let heightTerm = "n";
+                if (parent.type === 'line' && (parent.rotation % 180 === 0)) heightTerm = "1";
+                if (parent.type === 'constant') heightTerm = "1";
+
                 if (typeof parent.posY === 'string') {
-                    s.posY = `${parent.posY} + n`;
+                    s.posY = `${parent.posY} + ${heightTerm}`;
                 } else {
-                    s.posY = `${parent.posY} + n`; 
+                    s.posY = `${parent.posY} + ${heightTerm}`; 
                 }
                 if (parent.groupName) s.groupName = parent.groupName;
             }
@@ -289,6 +315,112 @@ const app = {
         this.updateUI(); this.draw();
     },
 
+    // CLEAN EXPORT FUNCTION
+    exportPNG(mode) {
+        // 1. Setup Staging Area
+        const staging = document.getElementById('export-staging');
+        const canvasWrapper = document.getElementById('export-canvas-wrapper');
+        const formulaWrapper = document.getElementById('export-formula-wrapper');
+        
+        staging.style.opacity = '1'; // Make visible for html2canvas
+        staging.style.zIndex = '9999';
+        
+        // 2. Clone Canvas
+        canvasWrapper.innerHTML = '';
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 1000;
+        tempCanvas.height = 600;
+        const tCtx = tempCanvas.getContext('2d');
+        
+        // Fill white
+        tCtx.fillStyle = '#ffffff';
+        tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        
+        // Draw current state to temp canvas (centered)
+        // We need to temporarily shift camera to center the figure in the export
+        const oldOffset = { ...this.cameraOffset };
+        
+        // Find bounding box of shapes to center them
+        // Simple centering: use current camera logic but mapped to new size
+        this.cameraOffset = { x: 500, y: 300 }; // Center of 1000x600
+        
+        // Hack: Swap canvas temporarily to draw on temp
+        const realCanvas = this.canvas;
+        const realCtx = this.ctx;
+        this.canvas = tempCanvas;
+        this.ctx = tCtx;
+        this.draw(); // Draw to temp
+        
+        // Restore
+        this.canvas = realCanvas;
+        this.ctx = realCtx;
+        this.cameraOffset = oldOffset;
+        
+        canvasWrapper.appendChild(tempCanvas);
+        
+        // 3. Setup Formula Text
+        formulaWrapper.innerHTML = '';
+        if (mode === 'formula') {
+            formulaWrapper.style.display = 'block';
+            
+            const title = document.createElement('div');
+            title.className = "font-bold text-lg mb-2";
+            title.innerText = `Figurnummer n = ${this.n}`;
+            
+            const content = document.createElement('div');
+            content.className = "text-xl font-mono";
+            
+            // Build text string
+            let txtF = "Fn = ";
+            let txtC = "";
+            let total = 0;
+            this.shapes.forEach((s, i) => {
+                const sign = i > 0 ? " + " : "";
+                txtF += sign + s.getFormulaRaw();
+                const v = s.getValue(this.n);
+                total += v;
+                txtC += sign + v;
+            });
+            txtC += " = " + total;
+            
+            content.innerHTML = `<div>${txtF}</div><div class="mt-2 text-gray-600">${txtC}</div>`;
+            formulaWrapper.appendChild(title);
+            formulaWrapper.appendChild(content);
+        } else {
+            formulaWrapper.style.display = 'none';
+        }
+        
+        // 4. Capture
+        html2canvas(staging, { backgroundColor: '#ffffff' }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'figurtall-export.png';
+            link.href = canvas.toDataURL();
+            link.click();
+            
+            // Cleanup
+            staging.style.opacity = '0';
+            staging.style.zIndex = '0';
+            canvasWrapper.innerHTML = '';
+        });
+    },
+
+    // ... Standard functions ...
+    copySelection() {
+        if (this.selectedIDs.size === 0) return;
+        this.clipboard = this.shapes.filter(s => this.selectedIDs.has(s.id));
+    },
+    pasteSelection() {
+        if (this.clipboard.length === 0) return;
+        this.selectedIDs.clear();
+        this.clipboard.forEach(template => {
+            const newShape = template.clone(this.nextId++);
+            if (typeof newShape.posX === 'number') newShape.posX += 1;
+            if (typeof newShape.posY === 'number') newShape.posY -= 1;
+            this.shapes.push(newShape);
+            this.selectedIDs.add(newShape.id);
+        });
+        this.updateUI(); this.draw();
+    },
     getGridPos(e) {
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -389,7 +521,6 @@ const app = {
             this.updateUI(); this.draw();
         }
     },
-    
     deleteSelected() {
         if (this.selectedIDs.size === 0) return;
         this.shapes = this.shapes.filter(s => !this.selectedIDs.has(s.id));
@@ -439,7 +570,6 @@ const app = {
         });
         this.draw();
     },
-
     updateUI() {
         this.renderLayersList();
         this.updateFormula();
@@ -506,7 +636,6 @@ const app = {
         const div = document.getElementById('formula-display');
         const calcDiv = document.getElementById('calc-display');
         
-        // Prevent race condition
         if (this.isRenderingFormula) return;
         this.isRenderingFormula = true;
 
@@ -515,9 +644,7 @@ const app = {
             calcDiv.innerText = "0 = 0"; 
             if(window.MathJax && MathJax.typesetPromise) {
                 MathJax.typesetPromise([div]).then(() => this.isRenderingFormula = false);
-            } else {
-                this.isRenderingFormula = false;
-            }
+            } else { this.isRenderingFormula = false; }
             return; 
         }
         
@@ -536,32 +663,13 @@ const app = {
             MathJax.typesetPromise([div])
                 .then(() => this.isRenderingFormula = false)
                 .catch(() => this.isRenderingFormula = false);
-        } else {
-            this.isRenderingFormula = false;
-        }
+        } else { this.isRenderingFormula = false; }
     },
 
     printApp(withFormula) {
         if (withFormula) document.body.classList.remove('print-no-formula');
         else document.body.classList.add('print-no-formula');
         window.print();
-    },
-
-    exportPNG(mode) {
-        // mode: 'clean' (kun canvas container) or 'formula' (hele workspace area)
-        let targetId = 'canvas-container';
-        if (mode === 'formula') targetId = 'workspace-area';
-        
-        const element = document.getElementById(targetId);
-        
-        html2canvas(element, {
-            backgroundColor: '#ffffff'
-        }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = 'figurtall-analyse.png';
-            link.href = canvas.toDataURL();
-            link.click();
-        });
     }
 };
 
