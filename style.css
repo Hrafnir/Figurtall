@@ -1,4 +1,4 @@
-/* Version: #2 */
+/* Version: #3 */
 
 /* General overrides */
 body {
@@ -20,14 +20,14 @@ body {
     background-position: -1px -1px;
 }
 
-/* Selection Marquee (The drag-selection box) */
+/* Selection Marquee */
 .selection-marquee {
     position: absolute;
-    border: 1px dashed #2563eb; /* Blue-600 */
+    border: 1px dashed #2563eb; 
     background-color: rgba(37, 99, 235, 0.1);
-    pointer-events: none; /* Let clicks pass through */
+    pointer-events: none; 
     z-index: 50;
-    display: none; /* Hidden by default */
+    display: none; 
 }
 
 /* Custom scrollbar */
@@ -95,14 +95,26 @@ input[type=range]:focus {
     outline: none;
 }
 
+/* Context Menu Animation */
+#context-menu {
+    animation: fadeIn 0.1s ease-out;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* Toggle Classes */
+.hidden-layout {
+    display: none !important;
+}
+
 /* === PRINT STYLING === */
 @media print {
-    /* Hide all UI elements marked with no-print */
     .no-print {
         display: none !important;
     }
 
-    /* Reset layout for paper */
     body, main, section {
         height: auto !important;
         overflow: visible !important;
@@ -110,19 +122,21 @@ input[type=range]:focus {
         display: block !important;
     }
 
-    /* Maximize canvas visibility */
     #canvas-container {
         width: 100% !important;
-        height: 600px !important; /* Fixed height for print */
+        height: 600px !important; 
         border: 2px solid #000;
         box-shadow: none;
         margin-bottom: 20px;
-        /* Ensure background grid prints */
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
 
-    /* Formula styling for print */
+    /* Condition: If user selected "No Formula", hide it */
+    body.print-no-formula #formula-bar {
+        display: none !important;
+    }
+
     #formula-display, #calc-display {
         border: 1px solid #000;
         background: white;
@@ -130,7 +144,6 @@ input[type=range]:focus {
         font-size: 14pt;
     }
 
-    /* Hide scrollbars on print */
     ::-webkit-scrollbar {
         display: none;
     }
