@@ -1,4 +1,4 @@
-/* Version: #4 */
+/* Version: #5 */
 
 body {
     -webkit-font-smoothing: antialiased;
@@ -54,32 +54,31 @@ input[type=range]:focus { outline: none; }
     to { opacity: 1; transform: scale(1); }
 }
 
-.hidden-layout { display: none !important; }
-
 /* PRINT STYLES */
 @media print {
     .no-print { display: none !important; }
     
-    body, #capture-area {
+    body {
         height: auto !important;
         overflow: visible !important;
         display: block !important;
     }
 
-    #sidebar-panel {
-        display: none !important; /* Hide sidebar on print */
-    }
+    #sidebar-panel { display: none !important; }
 
     #canvas-container {
-        height: 500px !important; 
+        height: 600px !important; 
         border: 1px solid #ccc;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+        page-break-after: avoid;
     }
 
-    body.print-no-formula #formula-bar { display: none !important; }
+    /* Logic for toggling formulas on print */
+    body.print-no-formula #bottom-panel { display: none !important; }
 
-    #formula-bar {
+    #bottom-panel {
+        height: auto !important;
         border: 1px solid #ccc;
         margin-top: 10px;
         page-break-inside: avoid;
