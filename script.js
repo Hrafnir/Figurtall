@@ -1,12 +1,9 @@
-/* Version: #11 */
+/* Version: #12 */
 
-// === KONFIGURASJON ===
 const GRID_SIZE = 30; 
 const DOT_RADIUS = 7; 
 const HIT_RADIUS = 0.6; 
 const DEFAULT_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#a855f7', '#f97316', '#06b6d4'];
-
-// === HJELPEFUNKSJONER ===
 
 function degreesToRadians(deg) {
     return deg * (Math.PI / 180);
@@ -22,7 +19,6 @@ function rotatePoint(x, y, degrees) {
     };
 }
 
-// Parser enkle uttrykk som "n", "n+2", "n/2", "3"
 function evaluateCoord(val, n) {
     if (typeof val === 'number') return val;
     if (!val) return 0;
@@ -30,10 +26,7 @@ function evaluateCoord(val, n) {
     let str = val.toString().toLowerCase().replace(/\s/g, '');
     
     try {
-        // Erstatt 'n' med verdien av n i parentes for sikkerhet
         const expr = str.replace(/n/g, `(${n})`);
-        
-        // Kun tillat tall og matteoperatorer for sikkerhet
         if (/^[0-9+\-*/().]+$/.test(expr)) {
             return Function(`return ${expr}`)();
         }
@@ -43,28 +36,24 @@ function evaluateCoord(val, n) {
     return parseFloat(val) || 0;
 }
 
-// === KLASSE: SHAPE ===
 class Shape {
     constructor(id, type, colorHex) {
         this.id = id;
         this.type = type; 
         this.color = colorHex || '#000000';
         
-        // Transformasjon
         this.posX = 0; 
         this.posY = 0; 
         this.rotation = 0; 
         this.flipX = 1;    
         this.flipY = 1;    
         
-        // Egenskaper
         this.nOffset = 0; 
         this.constantValue = 1; 
         this.groupName = ""; 
         
-        // Koblinger (Attachments)
-        this.attachedTo = null; // ID til forelder-figur
-        this.anchorType = 'center'; // 'top', 'bottom', 'left', 'right', 'center'
+        this.attachedTo = null; 
+        this.anchorType = 'center'; 
     }
 
     clone(newId) {
@@ -77,7 +66,6 @@ class Shape {
         s.nOffset = this.nOffset;
         s.constantValue = this.constantValue;
         s.groupName = this.groupName;
-        // Vi kopierer ikke attachedTo for å unngå uventet stabling ved lim-inn
         s.attachedTo = null; 
         return s;
     }
@@ -88,11 +76,10 @@ class Shape {
         return eff < 1 ? 0 : eff; 
     }
 
-    // Beregner bredde/høyde i grid-enheter for ankerpunkter
     getBounds(n) {
         let w = 0, h = 0;
         switch (this.type) {
-            case 'line': w = n; h = 1; break; // Antar horisontal linje som basis
+            case 'line': w = n; h = 1; break; 
             case 'square': w = n; h = n; break;
             case 'rectangle': w = n+1; h = n; break;
             case 'triangle': w = n; h = n; break;
@@ -101,24 +88,17 @@ class Shape {
         return { w, h };
     }
 
-    // Beregner faktisk posisjon (Verdenskoordinater)
     getCalculatedPos(globalN, allShapes) {
-        // 1. Beregn lokal offset (fra input-feltene)
         const localX = evaluateCoord(this.posX, globalN);
         const localY = evaluateCoord(this.posY, globalN);
 
-        // 2. Sjekk om figuren er festet til en annen
         if (this.attachedTo) {
             const parent = allShapes.find(s => s.id === parseInt(this.attachedTo));
             
-            // Unngå evig løkke hvis forelder ikke finnes eller peker tilbake (enkel sjekk)
             if (parent && parent.id !== this.id) {
-                // Rekursivt finn forelderens posisjon
                 const pPos = parent.getCalculatedPos(globalN, allShapes);
                 const bounds = parent.getBounds(parent.getEffectiveN(globalN));
                 
-                // Finn ankerpunkt i forelderens lokale system (urelaterert)
-                // Husk: I matte-grid er (0,0) nede til venstre for figuren slik vi tegner den
                 let anchorX = 0; 
                 let anchorY = 0;
 
@@ -130,10 +110,8 @@ class Shape {
                     case 'center': anchorX = bounds.w / 2; anchorY = bounds.h / 2; break;
                 }
 
-                // Roter ankerpunktet basert på forelderens rotasjon
                 const rotatedAnchor = rotatePoint(anchorX, anchorY, parent.rotation);
                 
-                // Sluttposisjon = ForelderPos + RotertAnker + LokalOffset
                 return {
                     x: pPos.x + rotatedAnchor.x + localX,
                     y: pPos.y + rotatedAnchor.y + localY
@@ -141,7 +119,6 @@ class Shape {
             }
         }
 
-        // Hvis ikke festet, bruk bare lokal posisjon
         return { x: localX, y: localY };
     }
 
@@ -174,7 +151,6 @@ class Shape {
                 break;
         }
 
-        // Roter og speilvend punktene internt i figuren
         return points.map(p => {
             let tx = p.x * this.flipX;
             let ty = p.y * this.flipY;
@@ -234,7 +210,6 @@ class Shape {
     }
 }
 
-// === APPLIKASJON ===
 const app = {
     canvas: null,
     ctx: null,
@@ -257,11 +232,10 @@ const app = {
     showFormula: true,
 
     init() {
-        console.log("Starter Figurtall Pro v11...");
+        console.log("Starter Figurtall Pro v12...");
         this.canvas = document.getElementById('main-canvas');
         this.ctx = this.canvas.getContext('2d');
         
-        // Opprett marquee hvis den mangler
         let m = document.querySelector('.selection-marquee');
         if (!m) {
             m = document.createElement('div');
@@ -270,7 +244,6 @@ const app = {
         }
         this.marquee = m;
 
-        // Listeners
         window.addEventListener('resize', () => this.resizeCanvas());
         
         const container = document.getElementById('canvas-container');
@@ -284,13 +257,11 @@ const app = {
         });
 
         window.addEventListener('keydown', (e) => {
-            // Ignorer snarveier hvis man skriver i input-felt
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return; 
             
             if (e.key === 'g') this.groupSelected();
             if (e.key === 'Delete' || e.key === 'Backspace') this.deleteSelected();
             
-            // Copy / Paste
             if ((e.ctrlKey || e.metaKey) && e.key === 'c') this.copySelection();
             if ((e.ctrlKey || e.metaKey) && e.key === 'v') this.pasteSelection();
         });
@@ -306,7 +277,6 @@ const app = {
 
         this.resizeCanvas();
         
-        // Wait for MathJax
         if (window.MathJax && MathJax.startup && MathJax.startup.promise) {
             MathJax.startup.promise.then(() => this.updateUI());
         } else {
@@ -332,7 +302,6 @@ const app = {
 
         this.ctx.clearRect(0, 0, w, h);
 
-        // Tegn Akser
         this.ctx.beginPath();
         this.ctx.strokeStyle = '#e5e7eb'; 
         this.ctx.lineWidth = 2;
@@ -340,13 +309,11 @@ const app = {
         this.ctx.moveTo(cx, 0); this.ctx.lineTo(cx, h);
         this.ctx.stroke();
 
-        // Tegn Figurer
         this.shapes.forEach(shape => {
             const points = shape.getPoints(this.n);
             const pos = shape.getCalculatedPos(this.n, this.shapes);
             const isSelected = this.selectedIDs.has(shape.id);
             
-            // Gjør figuren litt gjennomsiktig for å se overlapping
             this.ctx.globalAlpha = 0.9;
             this.ctx.fillStyle = shape.color;
             this.ctx.strokeStyle = isSelected ? '#2563eb' : 'rgba(0,0,0,0.2)'; 
@@ -362,7 +329,6 @@ const app = {
             });
             this.ctx.globalAlpha = 1.0;
             
-            // Tegn et lite firkantet "senterpunkt" hvis valgt
             if (isSelected) {
                 const ox = cx + pos.x * GRID_SIZE;
                 const oy = cy - pos.y * GRID_SIZE;
@@ -372,12 +338,10 @@ const app = {
         });
     },
 
-    // === UI RENDERING ===
     renderLayersList() {
         const list = document.getElementById('layers-list');
         list.innerHTML = '';
         
-        // Iterer baklengs for å vise øverste lag øverst
         [...this.shapes].reverse().forEach(shape => {
             const isSelected = this.selectedIDs.has(shape.id);
             const el = document.createElement('div');
@@ -406,10 +370,9 @@ const app = {
                         class="text-gray-400 hover:text-red-500 font-bold px-2">&times;</button>
             `;
 
-            // Lag dropdown-options for kobling
             let attachOptions = `<option value="">Ingen (Fri)</option>`;
             this.shapes.forEach(s => {
-                if (s.id !== shape.id) { // Kan ikke festes til seg selv
+                if (s.id !== shape.id) { 
                     attachOptions += `<option value="${s.id}" ${shape.attachedTo == s.id ? 'selected' : ''}>Figur #${s.id} (${this.getShapeName(s.type)})</option>`;
                 }
             });
@@ -482,7 +445,6 @@ const app = {
                 if (prop === 'posY') s.posY = isNaN(val) ? val : parseFloat(val);
                 if (prop === 'attachedTo') {
                     s.attachedTo = val === "" ? null : parseInt(val);
-                    // Nullstill offset når vi fester for å unngå at figuren hopper langt vekk
                     if (s.attachedTo) { s.posX = 0; s.posY = 0; }
                 }
                 if (prop === 'anchorType') s.anchorType = val;
@@ -493,7 +455,6 @@ const app = {
         if (prop === 'color' || prop === 'attachedTo') this.updateUI(); 
     },
 
-    // === TOGGLE FUNKSJONER ===
     toggleSidebar() {
         this.showSidebar = !this.showSidebar;
         const panel = document.getElementById('sidebar-panel');
@@ -528,21 +489,18 @@ const app = {
         setTimeout(() => this.resizeCanvas(), 50);
     },
     
-    // === LEGG TIL FIGUR ===
     addShape(type) {
         document.getElementById('add-shape-modal').classList.add('hidden');
         const color = DEFAULT_COLORS[this.shapes.length % DEFAULT_COLORS.length];
         const s = new Shape(this.nextId++, type, color);
         
-        // Auto-fest hvis nøyaktig én figur er valgt
         if (this.selectedIDs.size === 1) {
             const parentId = [...this.selectedIDs][0];
             s.attachedTo = parentId;
-            s.anchorType = 'top'; // Standard: stable oppå
+            s.anchorType = 'top'; 
             s.posX = 0; 
             s.posY = 0;
         } else {
-            // Tilfeldig plassering hvis ingen er valgt
             if (this.shapes.length > 0) {
                 s.posX = Math.round(((Math.random() * 4) - 2) * 2) / 2;
                 s.posY = Math.round(((Math.random() * 4) - 2) * 2) / 2;
@@ -560,47 +518,39 @@ const app = {
         this.draw();
     },
 
-    // === EKSPORT ===
     exportPNG(mode) {
         const staging = document.getElementById('export-staging');
         const canvasWrapper = document.getElementById('export-canvas-wrapper');
         const formulaWrapper = document.getElementById('export-formula-wrapper');
         
-        // Gjør staging synlig for html2canvas
         staging.style.opacity = '1'; 
         staging.style.zIndex = '9999';
         
-        // 1. Klon Canvas
         canvasWrapper.innerHTML = '';
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = 1000; 
         tempCanvas.height = 600;
         const tCtx = tempCanvas.getContext('2d');
         
-        // Hvit bakgrunn
         tCtx.fillStyle = '#ffffff'; 
         tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
         
-        // Tegn innholdet (sentrert)
         const oldOffset = { ...this.cameraOffset };
-        this.cameraOffset = { x: 500, y: 300 }; // Sentrer i 1000x600 bildet
+        this.cameraOffset = { x: 500, y: 300 }; 
         
         const realCanvas = this.canvas; 
         const realCtx = this.ctx;
         
-        // Bytt canvas midlertidig for å bruke draw() funksjonen
         this.canvas = tempCanvas; 
         this.ctx = tCtx;
         this.draw(); 
         
-        // Bytt tilbake
         this.canvas = realCanvas; 
         this.ctx = realCtx;
         this.cameraOffset = oldOffset;
         
         canvasWrapper.appendChild(tempCanvas);
         
-        // 2. Sett opp formel-tekst
         formulaWrapper.innerHTML = '';
         if (mode === 'formula') {
             formulaWrapper.style.display = 'block';
@@ -628,21 +578,18 @@ const app = {
             formulaWrapper.style.display = 'none'; 
         }
         
-        // 3. Ta bildet
         html2canvas(staging, { backgroundColor: '#ffffff' }).then(canvas => {
             const link = document.createElement('a');
             link.download = 'figurtall-export.png';
             link.href = canvas.toDataURL();
             link.click();
             
-            // Rydd opp
             staging.style.opacity = '0'; 
             staging.style.zIndex = '0'; 
             canvasWrapper.innerHTML = '';
         });
     },
 
-    // === STANDARD FUNKSJONER (COPY/PASTE, INPUT) ===
     copySelection() { 
         if (this.selectedIDs.size === 0) return; 
         this.clipboard = this.shapes.filter(s => this.selectedIDs.has(s.id)); 
@@ -653,7 +600,6 @@ const app = {
         this.selectedIDs.clear(); 
         this.clipboard.forEach(template => { 
             const newShape = template.clone(this.nextId++); 
-            // Flytt litt på kopien så den synes
             if (typeof newShape.posX === 'number') newShape.posX += 1; 
             if (typeof newShape.posY === 'number') newShape.posY -= 1; 
             this.shapes.push(newShape); 
@@ -847,6 +793,12 @@ const app = {
         this.draw(); 
     },
     
+    updateUI() {
+        this.renderLayersList();
+        this.updateFormula();
+        this.renderSelectionPanel();
+    },
+
     renderSelectionPanel() { 
         const panel = document.getElementById('selection-panel'); 
         if (this.selectedIDs.size === 0) { 
